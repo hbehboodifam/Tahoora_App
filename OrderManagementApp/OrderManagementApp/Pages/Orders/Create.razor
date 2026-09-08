@@ -1,0 +1,221 @@
+﻿@page "/orders/create"
+@using OrderManagementApp.Models
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<div class="container-fluid" dir="rtl">
+    <h2>➕ ثبت سفارش جدید</h2>
+
+    <!-- انتخاب مشتری -->
+    <div class="mb-3">
+        <label class="form-label">مشتری</label>
+        <select class="form-select" @bind="selectedCustomerId">
+            <option value="0">انتخاب مشتری...</option>
+            @foreach (var c in customers)
+            {
+                <option value="@c.CustomerId">@c.FullName</option>
+            }
+        </select>
+    </div>
+
+    <!-- تاریخ تحویل -->
+    <div class="mb-3">
+        <label class="form-label">تاریخ تحویل</label>
+        <input type="date" class="form-control" @bind="deliveryDate" />
+    </div>
+
+    <!-- افزودن محصول به سفارش (بهینه‌شده برای موبایل) -->
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">   <!-- ← col-12 برای موبایل -->
+            <label class="form-label">محصول</label>
+            <select class="form-select" @bind="selectedProductId">
+                <option value="0">انتخاب محصول...</option>
+                @foreach (var p in products)
+                {
+                    <option value="@p.ProductId">@p.ProductName</option>
+                }
+            </select>
+        </div>
+        <div class="col-6 col-md-2">   <!-- ← col-6 برای موبایل -->
+            <label class="form-label">تعداد</label>
+            <input type="number" class="form-control" @bind="quantity" step="0.1" />
+        </div>
+        <div class="col-6 col-md-2">   <!-- ← col-6 برای موبایل -->
+            <label class="form-label">قیمت واحد</label>
+            <input type="number" class="form-control" @bind="unitPrice" />
+        </div>
+        <div class="col-12 col-md-2">
+            <button class="btn btn-primary mt-4 w-100" @onclick="AddItem">➕ افزودن</button>
+        </div>
+    </div>
+
+    <!-- لیست آیتم‌های سفارش -->
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>محصول</th>
+                    <th>تعداد</th>
+                    <th>قیمت واحد</th>
+                    <th>جمع</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (items.Any())
+                {
+                    @foreach (var item in items)
+                    {
+                        <tr>
+                            <td>@item.ProductName</td>
+                            <td>@item.Quantity</td>
+                            <td>@item.UnitPrice.ToString("N0")</td>
+                            <td>@item.TotalPrice.ToString("N0")</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" @onclick="() => RemoveItem(item)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                    <tr class="table-info">
+                        <td colspan="3" class="text-left"><strong>جمع کل</strong></td>
+                        <td colspan="2"><strong>@totalAmount.ToString("N0")</strong></td>
+                    </tr>
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">هیچ محصولی به سفارش اضافه نشده است</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- وضعیت پرداخت -->
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" @bind="isPaid" id="isPaid" />
+        <label class="form-check-label" for="isPaid">پرداخت شده</label>
+    </div>
+
+    <!-- دکمه ذخیره سفارش -->
+    <button class="btn btn-success" @onclick="SaveOrder" disabled="@(items.Count == 0 || selectedCustomerId == 0)">
+        💾 ثبت سفارش
+    </button>
+</div>
+
+@code {
+    // مدل‌ها و داده‌ها
+    private List<CustomerDto> customers = new();
+    private List<ProductDto> products = new();
+    private List<OrderItemDto> items = new();
+    private int selectedCustomerId = 0;
+    private int selectedProductId = 0;
+    private decimal quantity = 1;
+    private decimal unitPrice = 0;
+    private DateTime deliveryDate = DateTime.Now.AddDays(3);
+    private bool isPaid = false;
+
+    private decimal totalAmount => items.Sum(i => i.TotalPrice);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            customers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/Customers") ?? new();
+            products = await Http.GetFromJsonAsync<List<ProductDto>>("api/Products") ?? new();
+        }
+        catch { }
+    }
+
+    private void AddItem()
+    {
+        var product = products.FirstOrDefault(p => p.ProductId == selectedProductId);
+        if (product == null) return;
+
+        var existing = items.FirstOrDefault(i => i.ProductId == selectedProductId);
+        if (existing != null)
+        {
+            existing.Quantity += quantity;
+            existing.UnitPrice = unitPrice > 0 ? unitPrice : product.UnitPrice;
+        }
+        else
+        {
+            items.Add(new OrderItemDto
+            {
+                ProductId = product.ProductId,
+                ProductName = product.ProductName,
+                Quantity = quantity,
+                UnitPrice = unitPrice > 0 ? unitPrice : product.UnitPrice
+            });
+        }
+    }
+
+    private void RemoveItem(OrderItemDto item)
+    {
+        items.Remove(item);
+    }
+
+    private async Task SaveOrder()
+    {
+        var order = new CreateOrderDto
+        {
+            CustomerId = selectedCustomerId,
+            DeliveryDate = deliveryDate,
+            IsPaid = isPaid,
+            PaymentDate = isPaid ? DateTime.Now : null,
+            OrderItems = items.Select(i => new OrderItemDto
+            {
+                ProductId = i.ProductId,
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice
+            }).ToList()
+        };
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/Orders", order);
+            if (response.IsSuccessStatusCode)
+            {
+                Navigation.NavigateTo("/orders");
+            }
+        }
+        catch { }
+    }
+
+    // ===== DTOها =====
+    public class CustomerDto
+    {
+        public int CustomerId { get; set; }
+        public string FullName { get; set; } = "";
+    }
+
+    public class ProductDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public decimal UnitPrice { get; set; }
+    }
+
+    public class OrderItemDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal TotalPrice => Quantity * UnitPrice;
+    }
+
+    public class CreateOrderDto
+    {
+        public int CustomerId { get; set; }
+        public DateTime DeliveryDate { get; set; }
+        public bool IsPaid { get; set; }
+        public DateTime? PaymentDate { get; set; }
+        public List<OrderItemDto> OrderItems { get; set; } = new();
+    }
+}

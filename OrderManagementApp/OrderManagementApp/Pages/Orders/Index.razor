@@ -1,0 +1,204 @@
+﻿@page "/orders"
+@using OrderManagementApp.Models
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid" dir="rtl">
+    <h2>📋 مدیریت سفارشات</h2>
+
+    <!-- فیلترها -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-3">
+            <label class="form-label">مشتری</label>
+            <select class="form-select" @bind="filterCustomerId">
+                <option value="0">همه مشتریان</option>
+                @foreach (var c in customers)
+                {
+                    <option value="@c.CustomerId">@c.FullName</option>
+                }
+            </select>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label">از تاریخ</label>
+            <input type="date" class="form-control" value="@filterFromDate" @onchange="(e) => filterFromDate = e.Value?.ToString()" />
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label">تا تاریخ</label>
+            <input type="date" class="form-control" value="@filterToDate" @onchange="(e) => filterToDate = e.Value?.ToString()" />
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label">وضعیت پرداخت</label>
+            <select class="form-select" @bind="filterPaymentStatus">
+                <option value="all">همه</option>
+                <option value="paid">پرداخت شده</option>
+                <option value="unpaid">پرداخت نشده</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" @onclick="ApplyFilters">🔍 اعمال فیلتر</button>
+        </div>
+    </div>
+
+    <!-- جدول سفارشات -->
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>شماره</th>
+                    <th>مشتری</th>
+                    <th>تاریخ سفارش</th>
+                    <th>تاریخ تحویل</th>
+                    <th>مبلغ</th>
+                    <th>وضعیت پرداخت</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (orders == null || !orders.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">هیچ سفارشی یافت نشد</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var o in orders)
+                    {
+                        <tr>
+                            <td>#@o.OrderId</td>
+                            <td>@o.CustomerName</td>
+                            <td>@o.OrderDate</td>
+                            <td>@o.DeliveryDate</td>
+                            <td>@o.TotalAmount.ToString("N0")</td>
+                            <td>
+                                <span class="badge @(o.IsPaid ? "bg-success" : "bg-danger")">
+                                    @(o.IsPaid ? "پرداخت شده" : "پرداخت نشده")
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-info" @onclick="() => ViewOrder(o.OrderId)">👁️</button>
+                                <button class="btn btn-sm btn-warning" @onclick="() => EditOrder(o.OrderId)">✏️</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteOrder(o.OrderId)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- خلاصه آمار -->
+    <div class="row g-3 mt-3">
+        <div class="col-6 col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h6>تعداد کل سفارشات</h6>
+                    <h4>@totalOrders</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h6>مجموع فروش</h6>
+                    <h4>@totalRevenue.ToString("N0")</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h6>پرداخت شده</h6>
+                    <h4>@paidCount</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h6>پرداخت نشده</h6>
+                    <h4>@unpaidCount</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CustomerDto> customers = new();
+    private List<OrderListModel> orders = new();
+    private int filterCustomerId = 0;
+    private string? filterFromDate;
+    private string? filterToDate;
+    private string filterPaymentStatus = "all";
+
+    private int totalOrders => orders?.Count ?? 0;
+    private decimal totalRevenue => orders?.Sum(o => o.TotalAmount) ?? 0;
+    private int paidCount => orders?.Count(o => o.IsPaid) ?? 0;
+    private int unpaidCount => orders?.Count(o => !o.IsPaid) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+        await LoadOrders();
+    }
+
+    private async Task LoadCustomers()
+    {
+        try
+        {
+            customers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/Customers") ?? new();
+        }
+        catch { }
+    }
+
+    private async Task LoadOrders()
+    {
+        try
+        {
+            var url = "api/Orders";
+            var queryParams = new List<string>();
+
+            if (filterCustomerId > 0)
+                queryParams.Add($"customerId={filterCustomerId}");
+
+            if (!string.IsNullOrEmpty(filterFromDate) && DateTime.TryParse(filterFromDate, out var from))
+                queryParams.Add($"from={from:yyyy-MM-dd}");
+
+            if (!string.IsNullOrEmpty(filterToDate) && DateTime.TryParse(filterToDate, out var to))
+                queryParams.Add($"to={to:yyyy-MM-dd}");
+
+            if (filterPaymentStatus != "all")
+                queryParams.Add($"isPaid={filterPaymentStatus == "paid"}");
+
+            if (queryParams.Any())
+                url += "?" + string.Join("&", queryParams);
+
+            orders = await Http.GetFromJsonAsync<List<OrderListModel>>(url) ?? new();
+        }
+        catch
+        {
+            orders = new();
+        }
+    }
+
+    private async Task ApplyFilters() => await LoadOrders();
+
+    private void ViewOrder(int id) => NavigationManager.NavigateTo($"/orders/details/{id}");
+    private void EditOrder(int id) => NavigationManager.NavigateTo($"/orders/edit/{id}");
+
+    private async Task DeleteOrder(int id)
+    {
+        if (await Confirm("آیا از حذف این سفارش مطمئن هستید؟"))
+        {
+            try
+            {
+                await Http.DeleteAsync($"api/Orders/{id}");
+                await LoadOrders();
+            }
+            catch { }
+        }
+    }
+
+    private async Task<bool> Confirm(string message) => await Task.FromResult(true);
+}

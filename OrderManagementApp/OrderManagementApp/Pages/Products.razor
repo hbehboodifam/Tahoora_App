@@ -1,0 +1,150 @@
+﻿@page "/products"
+@using OrderManagementApp.Models
+@inject HttpClient Http
+
+<div class="container-fluid" dir="rtl">
+    <h2>📦 مدیریت محصولات</h2>
+
+    <!-- دکمه افزودن -->
+    <button class="btn btn-primary mb-3" @onclick="ShowAddForm">➕ افزودن محصول جدید</button>
+
+    <!-- جدول محصولات -->
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>نام محصول</th>
+                    <th>قیمت واحد</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (products == null || !products.Any())
+                {
+                    <tr><td colspan="3" class="text-center">هیچ محصولی یافت نشد</td></tr>
+                }
+                else
+                {
+                    @foreach (var p in products)
+                    {
+                        <tr>
+                            <td>@p.ProductName</td>
+                            <td>@p.UnitPrice.ToString("N0")</td>
+                            <td>
+                                <button class="btn btn-sm btn-warning" @onclick="() => EditProduct(p)">✏️</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteProduct(p.ProductId)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- فرم افزودن/ویرایش -->
+    @if (showForm)
+    {
+        <div class="card mt-4">
+            <div class="card-header">@(editingProduct == null ? "افزودن محصول" : "ویرایش محصول")</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">نام محصول</label>
+                    <input class="form-control" @bind="formModel.ProductName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">قیمت واحد</label>
+                    <input class="form-control" @bind="formModel.UnitPrice" />
+                </div>
+                <button class="btn btn-success" @onclick="SaveProduct">💾 ذخیره</button>
+                <button class="btn btn-secondary" @onclick="CancelForm">❌ انصراف</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ProductDto> products = new();
+    private bool showForm = false;
+    private ProductDto? editingProduct = null;
+    private ProductDto formModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        try
+        {
+            products = await Http.GetFromJsonAsync<List<ProductDto>>("api/Products") ?? new();
+        }
+        catch
+        {
+            products = new();
+        }
+    }
+
+    private void ShowAddForm()
+    {
+        editingProduct = null;
+        formModel = new();
+        showForm = true;
+    }
+
+    private void EditProduct(ProductDto p)
+    {
+        editingProduct = p;
+        formModel = new() { ProductId = p.ProductId, ProductName = p.ProductName, UnitPrice = p.UnitPrice };
+        showForm = true;
+    }
+
+    private async Task SaveProduct()
+    {
+        try
+        {
+            if (editingProduct == null)
+            {
+                await Http.PostAsJsonAsync("api/Products", formModel);
+            }
+            else
+            {
+                await Http.PutAsJsonAsync($"api/Products/{editingProduct.ProductId}", formModel);
+            }
+            showForm = false;
+            await LoadProducts();
+        }
+        catch (Exception ex)
+        {
+            // نمایش خطا
+        }
+    }
+    
+    private void CancelForm()
+    {
+        showForm = false;
+        editingProduct = null;
+        formModel = new();
+    }
+
+    private async Task DeleteProduct(int id)
+    {
+        if (await Confirm("آیا از حذف این محصول مطمئن هستید؟"))
+        {
+            await Http.DeleteAsync($"api/Products/{id}");
+            await LoadProducts();
+        }
+    }
+
+    private async Task<bool> Confirm(string message)
+    {
+        return await Task.FromResult(true); // ساده‌سازی
+    }
+
+    public class ProductDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public decimal UnitPrice { get; set; }
+    }
+}

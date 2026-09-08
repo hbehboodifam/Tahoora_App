@@ -1,0 +1,185 @@
+﻿@page "/"
+@inject HttpClient Http
+
+<div class="container-fluid" dir="rtl">
+    <h2>📊 داشبورد مدیریت</h2>
+
+    <!-- فیلتر تاریخ -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <label class="form-label">از تاریخ</label>
+            <input type="date" class="form-control" value="@filterFromDate" @onchange="(e) => filterFromDate = e.Value?.ToString()" />
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label">تا تاریخ</label>
+            <input type="date" class="form-control" value="@filterToDate" @onchange="(e) => filterToDate = e.Value?.ToString()" />
+        </div>
+        <div class="col-6 col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" @onclick="ApplyFilters">🔍 اعمال فیلتر</button>
+        </div>
+    </div>
+
+    <!-- کارت‌های آماری -->
+    <div class="row g-4 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5>📦</h5>
+                    <h6 class="text-muted">تعداد سفارشات</h6>
+                    <h3>@totalOrders</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5>💰</h5>
+                    <h6 class="text-muted">مجموع فروش</h6>
+                    <h3>@totalRevenue.ToString("N0")</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5>👥</h5>
+                    <h6 class="text-muted">تعداد مشتریان</h6>
+                    <h3>@totalCustomers</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h5>⏳</h5>
+                    <h6 class="text-muted">پرداخت نشده</h6>
+                    <h3>@pendingPayments</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول آخرین سفارشات -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5>📋 آخرین سفارشات</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>شماره</th>
+                            <th>مشتری</th>
+                            <th>تاریخ</th>
+                            <th>مبلغ</th>
+                            <th>وضعیت</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (recentOrders == null || !recentOrders.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">هیچ سفارشی یافت نشد</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var order in recentOrders)
+                            {
+                                <tr>
+                                    <td>#@order.OrderId</td>
+                                    <td>@order.CustomerName</td>
+                                    <td>@order.OrderDate</td>
+                                    <td>@order.TotalAmount.ToString("N0")</td>
+                                    <td>
+                                        <span class="badge @(order.IsPaid ? "bg-success" : "bg-danger")">
+                                            @(order.IsPaid ? "پرداخت شده" : "پرداخت نشده")
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? filterFromDate;
+    private string? filterToDate;
+    private int totalOrders = 0;
+    private decimal totalRevenue = 0;
+    private int totalCustomers = 0;
+    private int pendingPayments = 0;
+    private List<RecentOrder> recentOrders = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData(null, null);
+    }
+
+    private async Task ApplyFilters()
+    {
+        DateTime? from = null;
+        DateTime? to = null;
+
+        if (!string.IsNullOrEmpty(filterFromDate) && DateTime.TryParse(filterFromDate, out var f))
+            from = f;
+        if (!string.IsNullOrEmpty(filterToDate) && DateTime.TryParse(filterToDate, out var t))
+            to = t;
+
+        await LoadData(from, to);
+    }
+
+    private async Task LoadData(DateTime? from, DateTime? to)
+    {
+        try
+        {
+            var url = "api/dashboard/stats";
+            var queryParams = new List<string>();
+
+            if (from.HasValue)
+                queryParams.Add($"from={from.Value:yyyy-MM-dd}");
+            if (to.HasValue)
+                queryParams.Add($"to={to.Value:yyyy-MM-dd}");
+
+            if (queryParams.Any())
+                url += "?" + string.Join("&", queryParams);
+
+            var result = await Http.GetFromJsonAsync<DashboardStats>(url);
+            if (result != null)
+            {
+                totalOrders = result.TotalOrders;
+                totalRevenue = result.TotalRevenue;
+                totalCustomers = result.TotalCustomers;
+                pendingPayments = result.PendingPayments;
+                recentOrders = result.RecentOrders ?? new();
+            }
+        }
+        catch
+        {
+            // در صورت خطا، داده‌های پیش‌فرض
+        }
+    }
+
+    public class DashboardStats
+    {
+        public int TotalOrders { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public int TotalCustomers { get; set; }
+        public int PendingPayments { get; set; }
+        public List<RecentOrder> RecentOrders { get; set; } = new();
+    }
+
+    public class RecentOrder
+    {
+        public int OrderId { get; set; }
+        public string CustomerName { get; set; } = "";
+        public string OrderDate { get; set; } = "";
+        public decimal TotalAmount { get; set; }
+        public bool IsPaid { get; set; }
+    }
+}

@@ -1,0 +1,162 @@
+﻿@page "/customers"
+@using OrderManagementApp.Models
+@inject HttpClient Http
+
+<div class="container-fluid" dir="rtl">
+    <h2>👥 مدیریت مشتریان</h2>
+
+    <button class="btn btn-primary mb-3" @onclick="ShowAddForm">➕ افزودن مشتری جدید</button>
+
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>نام</th>
+                    <th>تلفن</th>
+                    <th>ایمیل</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (customers == null || !customers.Any())
+                {
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">هیچ مشتریی یافت نشد</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var c in customers)
+                    {
+                        <tr>
+                            <td>@c.FullName</td>
+                            <td>@c.Phone</td>
+                            <td>@c.Email</td>
+                            <td>
+                                <button class="btn btn-sm btn-warning" @onclick="() => EditCustomer(c)">✏️</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteCustomer(c.CustomerId)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (showForm)
+    {
+        <div class="card mt-4">
+            <div class="card-header">@(editingCustomer == null ? "افزودن مشتری" : "ویرایش مشتری")</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">نام کامل</label>
+                    <input class="form-control" @bind="formModel.FullName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">تلفن</label>
+                    <input class="form-control" @bind="formModel.Phone" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">ایمیل</label>
+                    <input class="form-control" @bind="formModel.Email" />
+                </div>
+                <button class="btn btn-success" @onclick="SaveCustomer">💾 ذخیره</button>
+                <button class="btn btn-secondary" @onclick="CancelForm">❌ انصراف</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<CustomerDto> customers = new();
+    private bool showForm = false;
+    private CustomerDto? editingCustomer = null;
+    private CustomerDto formModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+    }
+
+    private async Task LoadCustomers()
+    {
+        try
+        {
+            customers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/Customers") ?? new();
+        }
+        catch
+        {
+            customers = new();
+        }
+    }
+
+    private void ShowAddForm()
+    {
+        editingCustomer = null;
+        formModel = new();
+        showForm = true;
+    }
+
+    private void EditCustomer(CustomerDto c)
+    {
+        editingCustomer = c;
+        formModel = new()
+            {
+                CustomerId = c.CustomerId,
+                FullName = c.FullName,
+                Phone = c.Phone,
+                Email = c.Email
+            };
+        showForm = true;
+    }
+
+    private async Task SaveCustomer()
+    {
+        try
+        {
+            if (editingCustomer == null)
+            {
+                await Http.PostAsJsonAsync("api/Customers", formModel);
+            }
+            else
+            {
+                await Http.PutAsJsonAsync($"api/Customers/{editingCustomer.CustomerId}", formModel);
+            }
+            showForm = false;
+            await LoadCustomers();
+        }
+        catch (Exception ex)
+        {
+            // در صورت نیاز پیام خطا نمایش دهید
+        }
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingCustomer = null;
+        formModel = new();
+    }
+
+    private async Task DeleteCustomer(int id)
+    {
+        if (await Confirm("آیا از حذف این مشتری مطمئن هستید؟"))
+        {
+            await Http.DeleteAsync($"api/Customers/{id}");
+            await LoadCustomers();
+        }
+    }
+
+    private async Task<bool> Confirm(string message)
+    {
+        return await Task.FromResult(true);
+    }
+
+    public class CustomerDto
+    {
+        public int CustomerId { get; set; }
+        public string FullName { get; set; } = "";
+        public string Phone { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+}
