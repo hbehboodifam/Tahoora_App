@@ -9,7 +9,7 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 // تنظیم HttpClient برای ارتباط با API (آدرس API محلی)
 builder.Services.AddScoped(sp => new HttpClient 
 { 
-    BaseAddress = new Uri("http://localhost:5202/") // ← اصلاح شد
+    BaseAddress = new Uri("https://order-management-api-f3sc.onrender.com") // ← اصلاح شد
 });
 
 await builder.Build().RunAsync();
