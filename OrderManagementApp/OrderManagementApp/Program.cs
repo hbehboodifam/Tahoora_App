@@ -22,4 +22,3 @@ builder.Services.AddScoped(sp => new HttpClient
 });
 
 await builder.Build().RunAsync();
-app.UseCors("AllowAll");
