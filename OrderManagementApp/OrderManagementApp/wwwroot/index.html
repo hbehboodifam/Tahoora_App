@@ -2,31 +2,47 @@
 <html lang="en">
 
 <head>
+    <meta name="blazor-environment" content="Production" />
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OrderManagementApp</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>مدیریت سفارشات</title>
     <base href="/" />
+    
+    <!-- Bootstrap -->
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="css/app.css" />
+    
+    <!-- Favicon -->
     <link rel="icon" type="image/png" href="favicon.png" />
+    
+    <!-- Blazor Styles -->
     <link href="OrderManagementApp.styles.css" rel="stylesheet" />
+    
+    <!-- ===== Date Range Picker ===== -->
+    <link href="_content/BlazorDateRangePicker/datepicker.css" rel="stylesheet" />
 </head>
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">⏳ در حال بارگذاری...</div>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
-        An unhandled error has occurred.
-        <a href="." class="reload">Reload</a>
+        خطایی رخ داده است.
+        <a href="." class="reload">بارگذاری مجدد</a>
         <span class="dismiss">🗙</span>
     </div>
+    
+    <!-- ===== Blazor Framework ===== -->
     <script src="_framework/blazor.webassembly.js"></script>
+    
+    <!-- ===== Date Range Picker JS ===== -->
+    <script src="_content/BlazorDateRangePicker/datepicker.js"></script>
 </body>
 
 </html>

@@ -1,0 +1,171 @@
+﻿@page "/orders/details/{id:int}"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fs-5 fs-md-4 mb-0">📄 جزئیات سفارش #@order?.OrderId</h2>
+        <button class="btn btn-secondary btn-sm" @onclick="GoBack">
+            🔙 بازگشت
+        </button>
+    </div>
+
+    @if (order == null)
+    {
+        <div class="text-center text-muted mt-5">
+            <p>⏳ در حال بارگذاری...</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-2 g-md-3">
+            <!-- اطلاعات اصلی -->
+            <div class="col-12 col-md-6">
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header bg-primary text-white py-2">
+                        <h5 class="mb-0 fs-6">📋 اطلاعات سفارش</h5>
+                    </div>
+                    <div class="card-body p-2 p-md-3">
+                        <table class="table table-bordered table-sm mb-0">
+                            <tr>
+                                <th style="width:40%" class="small">شماره سفارش</th>
+                                <td class="small">@order.OrderId</td>
+                            </tr>
+                            <tr>
+                                <th class="small">مشتری</th>
+                                <td class="small">@order.CustomerName</td>
+                            </tr>
+                            <tr>
+                                <th class="small">تاریخ سفارش</th>
+                                <td class="small">@order.OrderDate.ToPersianDate()</td>
+                            </tr>
+                            <tr>
+                                <th class="small">تاریخ تحویل</th>
+                                <td class="small">@order.DeliveryDate.ToPersianDate()</td>
+                            </tr>
+                            <tr>
+                                <th class="small">وضعیت پرداخت</th>
+                                <td class="small">
+                                    <span class="badge @(order.IsPaid ? "bg-success" : "bg-danger")">
+                                        @(order.IsPaid ? "✅ پرداخت شده" : "❌ پرداخت نشده")
+                                    </span>
+                                    @if (order.IsPaid && order.PaymentDate.HasValue)
+                                    {
+                                        <span class="text-muted ms-2 small">(تاریخ پرداخت: @order.PaymentDate.Value.ToPersianDate())</span>
+                                    }
+                                </td>
+                            </tr>
+                            <tr>
+                                <th class="small">مبلغ کل</th>
+                                <td class="small"><strong>@order.TotalAmount.ToString("N0")</strong> تومان</td>
+                            </tr>
+                            @if (!string.IsNullOrEmpty(order.Notes))
+                            {
+                                <tr>
+                                    <th class="small">توضیحات</th>
+                                    <td class="small">@order.Notes</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- لیست محصولات -->
+            <div class="col-12 col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-success text-white py-2">
+                        <h5 class="mb-0 fs-6">🛒 محصولات سفارش</h5>
+                    </div>
+                    <div class="card-body p-2 p-md-3">
+                        @if (order.OrderItems == null || !order.OrderItems.Any())
+                        {
+                            <p class="text-muted small">هیچ محصولی در این سفارش وجود ندارد.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th class="small">نام محصول</th>
+                                            <th class="small">تعداد</th>
+                                            <th class="small">قیمت واحد</th>
+                                            <th class="small">جمع</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in order.OrderItems)
+                                        {
+                                            <tr>
+                                                <td class="small">@item.ProductName</td>
+                                                <td class="small">@item.Quantity.ToString("N2")</td>
+                                                <td class="small">@item.UnitPrice.ToString("N0")</td>
+                                                <td class="small">@item.TotalPrice.ToString("N0")</td>
+                                            </tr>
+                                        }
+                                        <tr class="table-info fw-bold">
+                                            <td colspan="3" class="text-end small">جمع کل:</td>
+                                            <td class="small">@order.OrderItems.Sum(i => i.TotalPrice).ToString("N0")</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private OrderDetailDto? order;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrder();
+    }
+
+    private async Task LoadOrder()
+    {
+        try
+        {
+            order = await Http.GetFromJsonAsync<OrderDetailDto>($"api/Orders/{Id}");
+        }
+        catch
+        {
+            order = null;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/orders");
+    }
+
+    public class OrderDetailDto
+    {
+        public int OrderId { get; set; }
+        public string CustomerName { get; set; } = "";
+        public DateTime OrderDate { get; set; }
+        public DateTime DeliveryDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public bool IsPaid { get; set; }
+        public DateTime? PaymentDate { get; set; }
+        public string? Notes { get; set; }
+        public List<OrderItemDetailDto> OrderItems { get; set; } = new();
+    }
+
+    public class OrderItemDetailDto
+    {
+        public string ProductName { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal TotalPrice { get; set; }
+    }
+}

@@ -1,0 +1,20 @@
+# ===== .NET Build =====
+DataMigrationTool/
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+
+# ===== IDE =====
+.idea/
+.vs/
+.vscode/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Secrets =====
+*.log
+appsettings.local.json

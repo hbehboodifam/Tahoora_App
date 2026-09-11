@@ -8,6 +8,10 @@ RUN dotnet restore "OrderManagementApp/OrderManagementApp.csproj"
 # کپی بقیه فایل‌ها
 COPY . .
 WORKDIR "/src/OrderManagementApp"
+
+# کپی فایل Production روی فایل پیش‌فرض
+RUN cp wwwroot/appsettings.Production.json wwwroot/appsettings.json
+
 RUN dotnet publish "OrderManagementApp.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM nginx:alpine AS final

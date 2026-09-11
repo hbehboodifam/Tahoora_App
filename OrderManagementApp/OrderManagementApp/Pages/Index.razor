@@ -1,99 +1,94 @@
 ﻿@page "/"
 @inject HttpClient Http
 
-<div class="container-fluid" dir="rtl">
-    <h2>📊 داشبورد مدیریت</h2>
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">📊 داشبورد مدیریت</h2>
 
-    <!-- فیلتر تاریخ -->
-    <div class="row g-3 mb-4">
+    <div class="row g-2 mb-3">
         <div class="col-6 col-md-3">
-            <label class="form-label">از تاریخ</label>
-            <input type="date" class="form-control" value="@filterFromDate" @onchange="(e) => filterFromDate = e.Value?.ToString()" />
+            <label class="form-label small">از تاریخ</label>
+            <input type="date" class="form-control form-control-sm" @bind="filterFromDate" />
         </div>
         <div class="col-6 col-md-3">
-            <label class="form-label">تا تاریخ</label>
-            <input type="date" class="form-control" value="@filterToDate" @onchange="(e) => filterToDate = e.Value?.ToString()" />
+            <label class="form-label small">تا تاریخ</label>
+            <input type="date" class="form-control form-control-sm" @bind="filterToDate" />
         </div>
-        <div class="col-6 col-md-2 d-flex align-items-end">
-            <button class="btn btn-primary w-100" @onclick="ApplyFilters">🔍 اعمال فیلتر</button>
+        <div class="col-12 col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary btn-sm w-100" @onclick="ApplyFilters">🔍 اعمال فیلتر</button>
         </div>
     </div>
 
-    <!-- کارت‌های آماری -->
-    <div class="row g-4 mb-4">
+    <div class="row g-2 mb-3">
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5>📦</h5>
-                    <h6 class="text-muted">تعداد سفارشات</h6>
-                    <h3>@totalOrders</h3>
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">📦</h5>
+                    <h6 class="text-muted small mb-0">تعداد سفارشات</h6>
+                    <h4 class="mb-0">@totalOrders</h4>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5>💰</h5>
-                    <h6 class="text-muted">مجموع فروش</h6>
-                    <h3>@totalRevenue.ToString("N0")</h3>
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #2ecc71 !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">💰</h5>
+                    <h6 class="text-muted small mb-0">مجموع فروش</h6>
+                    <h4 class="mb-0">@totalRevenue.ToString("N0")</h4>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5>👥</h5>
-                    <h6 class="text-muted">تعداد مشتریان</h6>
-                    <h3>@totalCustomers</h3>
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #9b59b6 !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">👥</h5>
+                    <h6 class="text-muted small mb-0">تعداد مشتریان</h6>
+                    <h4 class="mb-0">@totalCustomers</h4>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <h5>⏳</h5>
-                    <h6 class="text-muted">پرداخت نشده</h6>
-                    <h3>@pendingPayments</h3>
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #e74c3c !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">⏳</h5>
+                    <h6 class="text-muted small mb-0">پرداخت نشده</h6>
+                    <h4 class="mb-0">@pendingPayments</h4>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- جدول آخرین سفارشات -->
     <div class="card shadow-sm">
-        <div class="card-header bg-white">
-            <h5>📋 آخرین سفارشات</h5>
+        <div class="card-header bg-white py-2">
+            <h5 class="mb-0 fs-6">📋 آخرین سفارشات</h5>
         </div>
-        <div class="card-body">
+        <div class="card-body p-2">
             <div class="table-responsive">
-                <table class="table table-hover">
+                <table class="table table-hover table-sm">
                     <thead>
                         <tr>
-                            <th>شماره</th>
-                            <th>مشتری</th>
-                            <th>تاریخ</th>
-                            <th>مبلغ</th>
-                            <th>وضعیت</th>
+                            <th class="small">شماره</th>
+                            <th class="small">مشتری</th>
+                            <th class="small">تاریخ</th>
+                            <th class="small">مبلغ</th>
+                            <th class="small">وضعیت</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (recentOrders == null || !recentOrders.Any())
                         {
-                            <tr>
-                                <td colspan="5" class="text-center text-muted">هیچ سفارشی یافت نشد</td>
-                            </tr>
+                            <tr><td colspan="5" class="text-center text-muted small py-2">هیچ سفارشی یافت نشد</td></tr>
                         }
                         else
                         {
                             @foreach (var order in recentOrders)
                             {
                                 <tr>
-                                    <td>#@order.OrderId</td>
-                                    <td>@order.CustomerName</td>
-                                    <td>@order.OrderDate</td>
-                                    <td>@order.TotalAmount.ToString("N0")</td>
+                                    <td class="small">#@order.OrderId</td>
+                                    <td class="small">@order.CustomerName</td>
+                                    <td class="small">@order.OrderDate.ToPersianDate()</td>
+                                    <td class="small">@order.TotalAmount.ToString("N0")</td>
                                     <td>
-                                        <span class="badge @(order.IsPaid ? "bg-success" : "bg-danger")">
+                                        <span class="badge @(order.IsPaid ? "bg-success" : "bg-danger") small">
                                             @(order.IsPaid ? "پرداخت شده" : "پرداخت نشده")
                                         </span>
                                     </td>
@@ -108,8 +103,8 @@
 </div>
 
 @code {
-    private string? filterFromDate;
-    private string? filterToDate;
+    private DateTime? filterFromDate;
+    private DateTime? filterToDate;
     private int totalOrders = 0;
     private decimal totalRevenue = 0;
     private int totalCustomers = 0;
@@ -123,15 +118,7 @@
 
     private async Task ApplyFilters()
     {
-        DateTime? from = null;
-        DateTime? to = null;
-
-        if (!string.IsNullOrEmpty(filterFromDate) && DateTime.TryParse(filterFromDate, out var f))
-            from = f;
-        if (!string.IsNullOrEmpty(filterToDate) && DateTime.TryParse(filterToDate, out var t))
-            to = t;
-
-        await LoadData(from, to);
+        await LoadData(filterFromDate, filterToDate);
     }
 
     private async Task LoadData(DateTime? from, DateTime? to)
@@ -140,14 +127,9 @@
         {
             var url = "api/dashboard/stats";
             var queryParams = new List<string>();
-
-            if (from.HasValue)
-                queryParams.Add($"from={from.Value:yyyy-MM-dd}");
-            if (to.HasValue)
-                queryParams.Add($"to={to.Value:yyyy-MM-dd}");
-
-            if (queryParams.Any())
-                url += "?" + string.Join("&", queryParams);
+            if (from.HasValue) queryParams.Add($"from={from.Value:yyyy-MM-dd}");
+            if (to.HasValue) queryParams.Add($"to={to.Value:yyyy-MM-dd}");
+            if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
 
             var result = await Http.GetFromJsonAsync<DashboardStats>(url);
             if (result != null)
@@ -159,10 +141,7 @@
                 recentOrders = result.RecentOrders ?? new();
             }
         }
-        catch
-        {
-            // در صورت خطا، داده‌های پیش‌فرض
-        }
+        catch { }
     }
 
     public class DashboardStats
@@ -178,7 +157,7 @@
     {
         public int OrderId { get; set; }
         public string CustomerName { get; set; } = "";
-        public string OrderDate { get; set; } = "";
+        public DateTime OrderDate { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsPaid { get; set; }
     }

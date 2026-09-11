@@ -101,6 +101,39 @@ body {
     border-radius: 30px;
 }
 
+/* ===== صفحه‌ی بارگذاری ===== */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: #f8f9fa;
+    direction: rtl;
+    font-family: 'Vazir', 'Segoe UI', sans-serif;
+}
+
+.loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 5px solid #e9ecef;
+    border-top: 5px solid #6C63FF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    margin-top: 20px;
+    font-size: 1.3rem;
+    color: #6c757d;
+    font-weight: 600;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 /* ===== موبایل ===== */
 @media (max-width: 768px) {
     .metric-card .value {

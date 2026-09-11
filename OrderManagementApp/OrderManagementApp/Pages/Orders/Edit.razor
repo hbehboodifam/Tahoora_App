@@ -1,0 +1,348 @@
+﻿@page "/orders/edit/{id:int}"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">✏️ ویرایش سفارش #@Id</h2>
+
+    @if (order == null)
+    {
+        <div class="text-center text-muted mt-5">
+            <p>⏳ در حال بارگذاری...</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm mb-3">
+            <div class="card-body p-2 p-md-3">
+                <!-- انتخاب مشتری -->
+                <div class="mb-3">
+                    <label class="form-label small">مشتری</label>
+                    <select class="form-select form-select-sm" @bind="order.CustomerId">
+                        <option value="0">انتخاب مشتری...</option>
+                        @foreach (var c in customers)
+                        {
+                            <option value="@c.CustomerId">@c.FullName</option>
+                        }
+                    </select>
+                </div>
+
+                <!-- تاریخ تحویل (شمسی) -->
+                <div class="mb-3">
+                    <label class="form-label small">تاریخ تحویل</label>
+                    <InputPersianDatePicker
+                        Value="@deliveryDateString"
+                        ValueChanged="@((string value) => { deliveryDateString = value; })"
+                        DateFormat="DateFormat.yyyy_slash_MM_slash_dd"
+                        Placeholder="انتخاب تاریخ تحویل"
+                        CssClass="form-control form-control-sm"
+                        CalendarType="Calendar.SingleModeJalali"
+                        MinDateSetOnToday="false"
+                    />
+                </div>
+
+                <!-- وضعیت پرداخت -->
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" @bind="order.IsPaid" id="isPaid" style="width: 1.2rem; height: 1.2rem;" />
+                    <label class="form-check-label small" for="isPaid">پرداخت شده</label>
+                </div>
+
+                <!-- توضیحات -->
+                <div class="mb-3">
+                    <label class="form-label small">توضیحات</label>
+                    <textarea class="form-control form-control-sm" @bind="order.Notes" rows="2"></textarea>
+                </div>
+
+                <!-- لیست محصولات فعلی -->
+                <h5 class="mt-4 fs-6">🛒 محصولات سفارش</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th class="small">نام محصول</th>
+                                <th class="small">تعداد</th>
+                                <th class="small">قیمت واحد</th>
+                                <th class="small">جمع</th>
+                                <th class="small">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in order.OrderItems)
+                            {
+                                <tr>
+                                    <td class="small">@item.ProductName</td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm" @bind="item.Quantity" step="0.1" style="width:80px;" />
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm" @bind="item.UnitPrice" step="1" style="width:120px;" />
+                                    </td>
+                                    <td class="small">@((item.Quantity * item.UnitPrice).ToString("N0"))</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger" @onclick="() => RemoveItem(item)">🗑️</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-info fw-bold">
+                                <td colspan="3" class="text-end small">جمع کل:</td>
+                                <td class="small">@order.OrderItems.Sum(i => i.Quantity * i.UnitPrice).ToString("N0")</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- افزودن محصول جدید -->
+                <div class="row g-2 mt-2">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small">محصول جدید</label>
+                        <select class="form-select form-select-sm" @bind="selectedProductId">
+                            <option value="0">انتخاب محصول...</option>
+                            @foreach (var p in products)
+                            {
+                                <option value="@p.ProductId">@p.ProductName - @p.UnitPrice.ToString("N0")</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small">تعداد</label>
+                        <input type="number" class="form-control form-control-sm" @bind="newQuantity" step="0.1" min="0.1" />
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small">قیمت واحد</label>
+                        <input type="number" class="form-control form-control-sm" @bind="newUnitPrice" step="1" min="0" />
+                    </div>
+                    <div class="col-12 col-md-2 d-flex align-items-end">
+                        <button class="btn btn-primary btn-sm w-100" @onclick="AddItem">➕ افزودن</button>
+                    </div>
+                </div>
+
+                <!-- دکمه‌های عملیات -->
+                <div class="mt-4 d-flex flex-column flex-md-row gap-2">
+                    <button class="btn btn-success w-100 w-md-auto" @onclick="SaveOrder">💾 ذخیره تغییرات</button>
+                    <button class="btn btn-secondary w-100 w-md-auto" @onclick="GoBack">❌ انصراف</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private EditOrderDto? order;
+    private string? deliveryDateString;
+    private List<CustomerDto> customers = new();
+    private List<ProductDto> products = new();
+    private int selectedProductId = 0;
+    private decimal newQuantity = 1;
+    private decimal newUnitPrice = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            order = await Http.GetFromJsonAsync<EditOrderDto>($"api/Orders/{Id}");
+            if (order == null) return;
+
+            deliveryDateString = order.DeliveryDate.ToPersianDate();
+
+            customers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/Customers") ?? new();
+            products = await Http.GetFromJsonAsync<List<ProductDto>>("api/Products") ?? new();
+        }
+        catch
+        {
+            order = null;
+        }
+    }
+
+    private async Task AddItem()
+    {
+        if (selectedProductId == 0)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "لطفاً یک محصول انتخاب کنید.");
+            return;
+        }
+
+        if (newQuantity <= 0)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "تعداد باید بزرگتر از صفر باشد.");
+            return;
+        }
+
+        if (newUnitPrice <= 0)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "قیمت واحد باید بزرگتر از صفر باشد.");
+            return;
+        }
+
+        var product = products.FirstOrDefault(p => p.ProductId == selectedProductId);
+        if (product == null) return;
+
+        if (order!.OrderItems.Any(i => i.ProductId == selectedProductId))
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "این محصول قبلاً به سفارش اضافه شده است.");
+            return;
+        }
+
+        order.OrderItems.Add(new EditOrderItemDto
+        {
+            ProductId = selectedProductId,
+            ProductName = product.ProductName,
+            Quantity = newQuantity,
+            UnitPrice = newUnitPrice
+        });
+
+        selectedProductId = 0;
+        newQuantity = 1;
+        newUnitPrice = 0;
+        StateHasChanged();
+    }
+
+    private void RemoveItem(EditOrderItemDto item)
+    {
+        order!.OrderItems.Remove(item);
+        StateHasChanged();
+    }
+
+    private DateTime ConvertPersianToGregorian(string persianDate)
+    {
+        if (string.IsNullOrEmpty(persianDate))
+            return DateTime.Now.AddDays(3);
+
+        try
+        {
+            var normalizedDate = ConvertPersianNumbersToEnglish(persianDate);
+            var parts = normalizedDate.Split('/');
+            if (parts.Length != 3)
+                return DateTime.Now.AddDays(3);
+
+            int year = int.Parse(parts[0]);
+            int month = int.Parse(parts[1]);
+            int day = int.Parse(parts[2]);
+
+            var pc = new System.Globalization.PersianCalendar();
+            return pc.ToDateTime(year, month, day, 0, 0, 0, 0);
+        }
+        catch
+        {
+            return DateTime.Now.AddDays(3);
+        }
+    }
+
+    private string ConvertPersianNumbersToEnglish(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        return input
+            .Replace('۰', '0')
+            .Replace('۱', '1')
+            .Replace('۲', '2')
+            .Replace('۳', '3')
+            .Replace('۴', '4')
+            .Replace('۵', '5')
+            .Replace('۶', '6')
+            .Replace('۷', '7')
+            .Replace('۸', '8')
+            .Replace('۹', '9');
+    }
+
+    private async Task SaveOrder()
+    {
+        if (order!.CustomerId == 0)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "لطفاً یک مشتری انتخاب کنید.");
+            return;
+        }
+
+        if (order.OrderItems.Count == 0)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "سفارش حداقل باید یک محصول داشته باشد.");
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(deliveryDateString))
+        {
+            order.DeliveryDate = ConvertPersianToGregorian(deliveryDateString);
+        }
+
+        var payload = new
+        {
+            order.OrderId,
+            order.CustomerId,
+            order.DeliveryDate,
+            order.IsPaid,
+            order.Notes,
+            OrderItems = order.OrderItems.Select(i => new
+            {
+                i.ProductId,
+                i.Quantity,
+                i.UnitPrice
+            }).ToList()
+        };
+
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"api/Orders/{Id}", payload);
+            if (response.IsSuccessStatusCode)
+            {
+                await JsRuntime.InvokeVoidAsync("alert", "✅ سفارش با موفقیت ویرایش شد!");
+                NavigationManager.NavigateTo("/orders");
+            }
+            else
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {content}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/orders");
+    }
+
+    public class CustomerDto
+    {
+        public int CustomerId { get; set; }
+        public string FullName { get; set; } = "";
+    }
+
+    public class ProductDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public decimal UnitPrice { get; set; }
+    }
+
+    public class EditOrderDto
+    {
+        public int OrderId { get; set; }
+        public int CustomerId { get; set; }
+        public DateTime DeliveryDate { get; set; }
+        public bool IsPaid { get; set; }
+        public string? Notes { get; set; }
+        public List<EditOrderItemDto> OrderItems { get; set; } = new();
+    }
+
+    public class EditOrderItemDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+    }
+}

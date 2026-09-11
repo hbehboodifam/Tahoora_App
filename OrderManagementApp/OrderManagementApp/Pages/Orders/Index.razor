@@ -1,16 +1,17 @@
 ﻿@page "/orders"
-@using OrderManagementApp.Models
+@using OrderManagementApp.Helpers
 @inject HttpClient Http
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
 
-<div class="container-fluid" dir="rtl">
-    <h2>📋 مدیریت سفارشات</h2>
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">📋 مدیریت سفارشات</h2>
 
     <!-- فیلترها -->
-    <div class="row g-3 mb-4">
+    <div class="row g-2 mb-3">
         <div class="col-12 col-md-3">
-            <label class="form-label">مشتری</label>
-            <select class="form-select" @bind="filterCustomerId">
+            <label class="form-label small">مشتری</label>
+            <select class="form-select form-select-sm" @bind="filterCustomerId">
                 <option value="0">همه مشتریان</option>
                 @foreach (var c in customers)
                 {
@@ -19,66 +20,67 @@
             </select>
         </div>
         <div class="col-6 col-md-2">
-            <label class="form-label">از تاریخ</label>
-            <input type="date" class="form-control" value="@filterFromDate" @onchange="(e) => filterFromDate = e.Value?.ToString()" />
+            <label class="form-label small">از تاریخ</label>
+            <input type="date" class="form-control form-control-sm" @bind="filterFromDate" />
         </div>
         <div class="col-6 col-md-2">
-            <label class="form-label">تا تاریخ</label>
-            <input type="date" class="form-control" value="@filterToDate" @onchange="(e) => filterToDate = e.Value?.ToString()" />
+            <label class="form-label small">تا تاریخ</label>
+            <input type="date" class="form-control form-control-sm" @bind="filterToDate" />
         </div>
         <div class="col-6 col-md-2">
-            <label class="form-label">وضعیت پرداخت</label>
-            <select class="form-select" @bind="filterPaymentStatus">
+            <label class="form-label small">وضعیت پرداخت</label>
+            <select class="form-select form-select-sm" @bind="filterPaymentStatus">
                 <option value="all">همه</option>
                 <option value="paid">پرداخت شده</option>
                 <option value="unpaid">پرداخت نشده</option>
             </select>
         </div>
         <div class="col-6 col-md-2 d-flex align-items-end">
-            <button class="btn btn-primary w-100" @onclick="ApplyFilters">🔍 اعمال فیلتر</button>
+            <button class="btn btn-primary btn-sm w-100" @onclick="ApplyFilters">🔍 اعمال فیلتر</button>
         </div>
     </div>
 
-    <!-- جدول سفارشات -->
-    <div class="table-responsive">
-        <table class="table table-hover">
+    <!-- نمایش در دسکتاپ -->
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover table-sm">
             <thead>
                 <tr>
-                    <th>شماره</th>
-                    <th>مشتری</th>
-                    <th>تاریخ سفارش</th>
-                    <th>تاریخ تحویل</th>
-                    <th>مبلغ</th>
-                    <th>وضعیت پرداخت</th>
-                    <th>عملیات</th>
+                    <th class="small">شماره</th>
+                    <th class="small">مشتری</th>
+                    <th class="small">تاریخ سفارش</th>
+                    <th class="small">تاریخ تحویل</th>
+                    <th class="small">مبلغ</th>
+                    <th class="small">وضعیت</th>
+                    <th class="small">عملیات</th>
                 </tr>
             </thead>
             <tbody>
-                @if (orders == null || !orders.Any())
+                @if (pagedOrders == null || !pagedOrders.Any())
                 {
-                    <tr>
-                        <td colspan="7" class="text-center text-muted">هیچ سفارشی یافت نشد</td>
-                    </tr>
+                    <tr><td colspan="7" class="text-center text-muted small py-2">هیچ سفارشی یافت نشد</td></tr>
                 }
                 else
                 {
-                    @foreach (var o in orders)
+                    @foreach (var o in pagedOrders)
                     {
                         <tr>
-                            <td>#@o.OrderId</td>
-                            <td>@o.CustomerName</td>
-                            <td>@o.OrderDate</td>
-                            <td>@o.DeliveryDate</td>
-                            <td>@o.TotalAmount.ToString("N0")</td>
+                            <td class="small">#@o.OrderId</td>
+                            <td class="small">@o.CustomerName</td>
+                            <td class="small">@o.OrderDate.ToPersianDate()</td>
+                            <td class="small">@o.DeliveryDate.ToPersianDate()</td>
+                            <td class="small">@o.TotalAmount.ToString("N0")</td>
                             <td>
-                                <span class="badge @(o.IsPaid ? "bg-success" : "bg-danger")">
+                                <span class="badge @(o.IsPaid ? "bg-success" : "bg-danger") small">
                                     @(o.IsPaid ? "پرداخت شده" : "پرداخت نشده")
                                 </span>
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-info" @onclick="() => ViewOrder(o.OrderId)">👁️</button>
-                                <button class="btn btn-sm btn-warning" @onclick="() => EditOrder(o.OrderId)">✏️</button>
-                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteOrder(o.OrderId)">🗑️</button>
+                                <div class="d-flex flex-nowrap gap-1">
+                                    <button class="btn btn-sm btn-info" @onclick="() => ViewOrder(o.OrderId)">👁️</button>
+                                    <button class="btn btn-sm btn-warning" @onclick="() => EditOrder(o.OrderId)">✏️</button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteOrder(o.OrderId)">🗑️</button>
+                                    <button class="btn btn-sm @(o.IsPaid ? "btn-success" : "btn-secondary")" @onclick="() => TogglePayment(o.OrderId)">@(o.IsPaid ? "✅" : "⏳")</button>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -87,55 +89,104 @@
         </table>
     </div>
 
-    <!-- خلاصه آمار -->
-    <div class="row g-3 mt-3">
-        <div class="col-6 col-md-3">
-            <div class="card bg-light">
-                <div class="card-body text-center">
-                    <h6>تعداد کل سفارشات</h6>
-                    <h4>@totalOrders</h4>
+    <!-- نمایش کارتی در موبایل -->
+    <div class="d-md-none">
+        @if (pagedOrders == null || !pagedOrders.Any())
+        {
+            <div class="text-center text-muted small py-3">هیچ سفارشی یافت نشد</div>
+        }
+        else
+        {
+            @foreach (var o in pagedOrders)
+            {
+                <div class="card shadow-sm mb-2">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="badge bg-secondary small">#@o.OrderId</span>
+                                <span class="fw-bold me-1 small">@o.CustomerName</span>
+                            </div>
+                            <span class="badge @(o.IsPaid ? "bg-success" : "bg-danger") small">
+                                @(o.IsPaid ? "پرداخت شده" : "پرداخت نشده")
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between small text-muted mt-1">
+                            <span>📅 @o.OrderDate.ToPersianDate()</span>
+                            <span>📦 @o.DeliveryDate.ToPersianDate()</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <span class="fw-bold text-primary small">@o.TotalAmount.ToString("N0") تومان</span>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-info" @onclick="() => ViewOrder(o.OrderId)">👁️</button>
+                                <button class="btn btn-sm btn-warning" @onclick="() => EditOrder(o.OrderId)">✏️</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteOrder(o.OrderId)">🗑️</button>
+                                <button class="btn btn-sm @(o.IsPaid ? "btn-success" : "btn-secondary")" @onclick="() => TogglePayment(o.OrderId)">@(o.IsPaid ? "✅" : "⏳")</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+            }
+        }
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+            <span class="small">صفحه @currentPage از @totalPages</span>
+            <div class="d-flex gap-1 flex-wrap">
+                <button class="btn btn-sm btn-outline-primary" disabled="@(currentPage == 1)" @onclick="() => GoToPage(currentPage - 1)">قبلی</button>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    int pageNumber = i;
+                    <button class="btn btn-sm @(pageNumber == currentPage ? "btn-primary" : "btn-outline-secondary")" @onclick="() => GoToPage(pageNumber)">@pageNumber</button>
+                }
+                <button class="btn btn-sm btn-outline-primary" disabled="@(currentPage == totalPages)" @onclick="() => GoToPage(currentPage + 1)">بعدی</button>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card bg-light">
-                <div class="card-body text-center">
-                    <h6>مجموع فروش</h6>
-                    <h4>@totalRevenue.ToString("N0")</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card bg-light">
-                <div class="card-body text-center">
-                    <h6>پرداخت شده</h6>
-                    <h4>@paidCount</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card bg-light">
-                <div class="card-body text-center">
-                    <h6>پرداخت نشده</h6>
-                    <h4>@unpaidCount</h4>
-                </div>
-            </div>
-        </div>
+    }
+
+    <div class="row g-2 mt-3">
+        <div class="col-6 col-md-3"><div class="card bg-light"><div class="card-body text-center p-2"><h6 class="small mb-0">تعداد کل</h6><h5 class="mb-0">@totalOrders</h5></div></div></div>
+        <div class="col-6 col-md-3"><div class="card bg-light"><div class="card-body text-center p-2"><h6 class="small mb-0">مجموع فروش</h6><h5 class="mb-0">@totalRevenue.ToString("N0")</h5></div></div></div>
+        <div class="col-6 col-md-3"><div class="card bg-light"><div class="card-body text-center p-2"><h6 class="small mb-0">پرداخت شده</h6><h5 class="mb-0">@paidCount</h5></div></div></div>
+        <div class="col-6 col-md-3"><div class="card bg-light"><div class="card-body text-center p-2"><h6 class="small mb-0">پرداخت نشده</h6><h5 class="mb-0">@unpaidCount</h5></div></div></div>
     </div>
 </div>
 
 @code {
+    public class CustomerDto
+    {
+        public int CustomerId { get; set; }
+        public string FullName { get; set; } = "";
+    }
+
+    public class OrderListModel
+    {
+        public int OrderId { get; set; }
+        public string CustomerName { get; set; } = "";
+        public DateTime OrderDate { get; set; }
+        public DateTime DeliveryDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public bool IsPaid { get; set; }
+        public DateTime? PaymentDate { get; set; }
+        public string? Notes { get; set; }
+    }
+
     private List<CustomerDto> customers = new();
-    private List<OrderListModel> orders = new();
+    private List<OrderListModel> allOrders = new();
+    private List<OrderListModel> pagedOrders = new();
+    private int currentPage = 1;
+    private int pageSize = 15;
     private int filterCustomerId = 0;
-    private string? filterFromDate;
-    private string? filterToDate;
+    private DateTime? filterFromDate;
+    private DateTime? filterToDate;
     private string filterPaymentStatus = "all";
 
-    private int totalOrders => orders?.Count ?? 0;
-    private decimal totalRevenue => orders?.Sum(o => o.TotalAmount) ?? 0;
-    private int paidCount => orders?.Count(o => o.IsPaid) ?? 0;
-    private int unpaidCount => orders?.Count(o => !o.IsPaid) ?? 0;
+    private int totalOrders => allOrders?.Count ?? 0;
+    private decimal totalRevenue => allOrders?.Sum(o => o.TotalAmount) ?? 0;
+    private int paidCount => allOrders?.Count(o => o.IsPaid) ?? 0;
+    private int unpaidCount => allOrders?.Count(o => !o.IsPaid) ?? 0;
+    private int totalPages => (int)Math.Ceiling((double)allOrders.Count / pageSize);
 
     protected override async Task OnInitializedAsync()
     {
@@ -145,10 +196,7 @@
 
     private async Task LoadCustomers()
     {
-        try
-        {
-            customers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/Customers") ?? new();
-        }
+        try { customers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/Customers") ?? new(); }
         catch { }
     }
 
@@ -159,27 +207,29 @@
             var url = "api/Orders";
             var queryParams = new List<string>();
 
-            if (filterCustomerId > 0)
-                queryParams.Add($"customerId={filterCustomerId}");
+            if (filterCustomerId > 0) queryParams.Add($"customerId={filterCustomerId}");
+            if (filterFromDate.HasValue) queryParams.Add($"from={filterFromDate.Value:yyyy-MM-dd}");
+            if (filterToDate.HasValue) queryParams.Add($"to={filterToDate.Value:yyyy-MM-dd}");
+            if (filterPaymentStatus != "all") queryParams.Add($"isPaid={filterPaymentStatus == "paid"}");
 
-            if (!string.IsNullOrEmpty(filterFromDate) && DateTime.TryParse(filterFromDate, out var from))
-                queryParams.Add($"from={from:yyyy-MM-dd}");
+            if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
 
-            if (!string.IsNullOrEmpty(filterToDate) && DateTime.TryParse(filterToDate, out var to))
-                queryParams.Add($"to={to:yyyy-MM-dd}");
-
-            if (filterPaymentStatus != "all")
-                queryParams.Add($"isPaid={filterPaymentStatus == "paid"}");
-
-            if (queryParams.Any())
-                url += "?" + string.Join("&", queryParams);
-
-            orders = await Http.GetFromJsonAsync<List<OrderListModel>>(url) ?? new();
+            allOrders = await Http.GetFromJsonAsync<List<OrderListModel>>(url) ?? new();
+            UpdatePagedList();
         }
-        catch
-        {
-            orders = new();
-        }
+        catch { allOrders = new(); }
+    }
+
+    private void UpdatePagedList()
+    {
+        pagedOrders = allOrders.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        UpdatePagedList();
     }
 
     private async Task ApplyFilters() => await LoadOrders();
@@ -189,16 +239,45 @@
 
     private async Task DeleteOrder(int id)
     {
-        if (await Confirm("آیا از حذف این سفارش مطمئن هستید؟"))
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", "آیا از حذف این سفارش مطمئن هستید؟");
+        if (!confirmed) return;
+
+        try
         {
-            try
-            {
-                await Http.DeleteAsync($"api/Orders/{id}");
-                await LoadOrders();
-            }
-            catch { }
+            await Http.DeleteAsync($"api/Orders/{id}");
+            await LoadOrders();
         }
+        catch { }
     }
 
-    private async Task<bool> Confirm(string message) => await Task.FromResult(true);
+    private async Task TogglePayment(int orderId)
+    {
+        var order = allOrders.FirstOrDefault(o => o.OrderId == orderId);
+        if (order == null) return;
+
+        var newStatus = !order.IsPaid;
+        var statusText = newStatus ? "پرداخت شده" : "پرداخت نشده";
+
+        var confirm = await JsRuntime.InvokeAsync<bool>("confirm", $"آیا از تغییر وضعیت به '{statusText}' مطمئن هستید؟");
+        if (!confirm) return;
+
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"api/Orders/{orderId}/toggle-payment", new { IsPaid = newStatus });
+            if (response.IsSuccessStatusCode)
+            {
+                order.IsPaid = newStatus;
+                StateHasChanged();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+        }
+    }
 }
