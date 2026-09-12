@@ -4,14 +4,22 @@
 <div class="container-fluid px-2 px-md-3" dir="rtl">
     <h2 class="fs-5 fs-md-4 mb-3">📊 داشبورد مدیریت</h2>
 
-    <div class="row g-2 mb-3">
+    <div class="row g-3 mb-3">
         <div class="col-6 col-md-3">
             <label class="form-label small">از تاریخ</label>
-            <input type="date" class="form-control form-control-sm" @bind="filterFromDate" />
+            <InputPersianDatePicker 
+                Value="@filterFromDateString"
+                ValueChanged="@((string value) => { filterFromDateString = value; })"
+                Placeholder="انتخاب تاریخ" 
+                CssClass="form-control form-control-sm"/>
         </div>
         <div class="col-6 col-md-3">
             <label class="form-label small">تا تاریخ</label>
-            <input type="date" class="form-control form-control-sm" @bind="filterToDate" />
+            <InputPersianDatePicker 
+                Value="@filterToDateString"
+                ValueChanged="@((string value) => { filterToDateString = value; })"
+                Placeholder="انتخاب تاریخ"
+                CssClass="form-control form-control-sm"/>
         </div>
         <div class="col-12 col-md-3 d-flex align-items-end">
             <button class="btn btn-primary btn-sm w-100" @onclick="ApplyFilters">🔍 اعمال فیلتر</button>
@@ -103,6 +111,8 @@
 </div>
 
 @code {
+    private string? filterFromDateString;
+    private string? filterToDateString;
     private DateTime? filterFromDate;
     private DateTime? filterToDate;
     private int totalOrders = 0;
@@ -118,7 +128,31 @@
 
     private async Task ApplyFilters()
     {
+        // تبدیل تاریخ شمسی به میلادی
+        filterFromDate = ConvertPersianToGregorian(filterFromDateString);
+        filterToDate = ConvertPersianToGregorian(filterToDateString);
+    
         await LoadData(filterFromDate, filterToDate);
+    }
+
+    private DateTime? ConvertPersianToGregorian(string? persianDate)
+    {
+        if (string.IsNullOrEmpty(persianDate)) return null;
+    
+        var normalized = persianDate
+            .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
+            .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
+        var parts = normalized.Split('/');
+    
+        if (parts.Length == 3 && 
+            int.TryParse(parts[0], out int y) && 
+            int.TryParse(parts[1], out int m) && 
+            int.TryParse(parts[2], out int d))
+        {
+            var pc = new System.Globalization.PersianCalendar();
+            return pc.ToDateTime(y, m, d, 0, 0, 0, 0);
+        }
+        return null;
     }
 
     private async Task LoadData(DateTime? from, DateTime? to)

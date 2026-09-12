@@ -21,11 +21,19 @@
         </div>
         <div class="col-6 col-md-2">
             <label class="form-label small">از تاریخ</label>
-            <input type="date" class="form-control form-control-sm" @bind="filterFromDate" />
+            <InputPersianDatePicker 
+                Value="@filterFromDateString"
+                ValueChanged="@((string value) => { filterFromDateString = value; })"
+                Placeholder="انتخاب"
+                CssClass="form-control form-control-sm"/>
         </div>
         <div class="col-6 col-md-2">
             <label class="form-label small">تا تاریخ</label>
-            <input type="date" class="form-control form-control-sm" @bind="filterToDate" />
+            <InputPersianDatePicker 
+                Value="@filterToDateString"
+                ValueChanged="@((string value) => { filterToDateString = value; })"
+                Placeholder="انتخاب"
+                CssClass="form-control form-control-sm"/>
         </div>
         <div class="col-6 col-md-2">
             <label class="form-label small">وضعیت پرداخت</label>
@@ -178,6 +186,8 @@
     private int currentPage = 1;
     private int pageSize = 15;
     private int filterCustomerId = 0;
+    private string? filterFromDateString;
+    private string? filterToDateString;
     private DateTime? filterFromDate;
     private DateTime? filterToDate;
     private string filterPaymentStatus = "all";
@@ -232,8 +242,32 @@
         UpdatePagedList();
     }
 
-    private async Task ApplyFilters() => await LoadOrders();
+    private async Task ApplyFilters()
+    {
+        filterFromDate = ConvertPersianToGregorian(filterFromDateString);
+        filterToDate = ConvertPersianToGregorian(filterToDateString);
+        await LoadOrders();
+    }
 
+    private DateTime? ConvertPersianToGregorian(string? persianDate)
+    {
+        if (string.IsNullOrEmpty(persianDate)) return null;
+    
+        var normalized = persianDate
+            .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
+            .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
+        var parts = normalized.Split('/');
+    
+        if (parts.Length == 3 && 
+            int.TryParse(parts[0], out int y) && 
+            int.TryParse(parts[1], out int m) && 
+            int.TryParse(parts[2], out int d))
+        {
+            var pc = new System.Globalization.PersianCalendar();
+            return pc.ToDateTime(y, m, d, 0, 0, 0, 0);
+        }
+        return null;
+    }
     private void ViewOrder(int id) => NavigationManager.NavigateTo($"/orders/details/{id}");
     private void EditOrder(int id) => NavigationManager.NavigateTo($"/orders/edit/{id}");
 

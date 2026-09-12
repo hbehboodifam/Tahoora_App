@@ -18,29 +18,22 @@
         <div class="card shadow-sm mb-3">
             <div class="card-body p-2 p-md-3">
                 <!-- انتخاب مشتری -->
+                <!-- نمایش مشتری (فقط خواندنی) -->
                 <div class="mb-3">
                     <label class="form-label small">مشتری</label>
-                    <select class="form-select form-select-sm" @bind="order.CustomerId">
-                        <option value="0">انتخاب مشتری...</option>
-                        @foreach (var c in customers)
-                        {
-                            <option value="@c.CustomerId">@c.FullName</option>
-                        }
-                    </select>
+                    <div class="form-control form-control-sm bg-light" style="cursor: not-allowed;">
+                        👤 @customerName
+                    </div>
                 </div>
 
                 <!-- تاریخ تحویل (شمسی) -->
                 <div class="mb-3">
                     <label class="form-label small">تاریخ تحویل</label>
-                    <InputPersianDatePicker
+                    <InputPersianDatePicker 
                         Value="@deliveryDateString"
                         ValueChanged="@((string value) => { deliveryDateString = value; })"
-                        DateFormat="DateFormat.yyyy_slash_MM_slash_dd"
                         Placeholder="انتخاب تاریخ تحویل"
-                        CssClass="form-control form-control-sm"
-                        CalendarType="Calendar.SingleModeJalali"
-                        MinDateSetOnToday="false"
-                    />
+                        CssClass="form-control form-control-sm"/>
                 </div>
 
                 <!-- وضعیت پرداخت -->
@@ -69,22 +62,28 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var item in order.OrderItems)
-                            {
-                                <tr>
-                                    <td class="small">@item.ProductName</td>
-                                    <td>
-                                        <input type="number" class="form-control form-control-sm" @bind="item.Quantity" step="0.1" style="width:80px;" />
-                                    </td>
-                                    <td>
-                                        <input type="number" class="form-control form-control-sm" @bind="item.UnitPrice" step="1" style="width:120px;" />
-                                    </td>
-                                    <td class="small">@((item.Quantity * item.UnitPrice).ToString("N0"))</td>
-                                    <td>
-                                        <button class="btn btn-sm btn-danger" @onclick="() => RemoveItem(item)">🗑️</button>
-                                    </td>
-                                </tr>
-                            }
+                        @foreach (var item in order.OrderItems)
+                        {
+                            <tr>
+                                <td class="small">@item.ProductName</td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm" 
+                                           value="@item.Quantity.ToString("0.##")" 
+                                           @onchange="(e) => UpdateQuantity(item, e)"
+                                           step="0.01" min="0.01" style="width:90px;" />
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm" 
+                                           value="@item.UnitPrice.ToString("0")" 
+                                           @onchange="(e) => UpdatePrice(item, e)"
+                                           step="1" min="1" style="width:120px;" />
+                                </td>
+                                <td class="small">@((item.Quantity * item.UnitPrice).ToString("N0"))</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => RemoveItem(item)">🗑️</button>
+                                </td>
+                            </tr>
+                        }
                         </tbody>
                         <tfoot>
                             <tr class="table-info fw-bold">
@@ -110,7 +109,7 @@
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small">تعداد</label>
-                        <input type="number" class="form-control form-control-sm" @bind="newQuantity" step="0.1" min="0.1" />
+                        <input type="number" class="form-control form-control-sm" @bind="newQuantity" step="0.01" min="0.01" />
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small">قیمت واحد</label>
@@ -136,8 +135,10 @@
     public int Id { get; set; }
 
     private EditOrderDto? order;
-    private string? deliveryDateString;
+    private string customerName = "-";
     private List<CustomerDto> customers = new();
+    private string? deliveryDateString;
+    private DateTime? deliveryDate;
     private List<ProductDto> products = new();
     private int selectedProductId = 0;
     private decimal newQuantity = 1;
@@ -155,15 +156,40 @@
             order = await Http.GetFromJsonAsync<EditOrderDto>($"api/Orders/{Id}");
             if (order == null) return;
 
-            deliveryDateString = order.DeliveryDate.ToPersianDate();
+            deliveryDate = order.DeliveryDate;
+            var pc = new System.Globalization.PersianCalendar();
+            deliveryDateString = $"{pc.GetYear(order.DeliveryDate):0000}/{pc.GetMonth(order.DeliveryDate):00}/{pc.GetDayOfMonth(order.DeliveryDate):00}";
 
             customers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/Customers") ?? new();
             products = await Http.GetFromJsonAsync<List<ProductDto>>("api/Products") ?? new();
+            // پیدا کردن نام مشتری برای نمایش
+            var customer = customers.FirstOrDefault(c => c.CustomerId == order.CustomerId);
+            customerName = customer?.FullName ?? "نامشخص";
         }
         catch
         {
             order = null;
         }
+    }
+    
+    // ===== به‌روزرسانی تعداد =====
+    private void UpdateQuantity(EditOrderItemDto item, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal qty) && qty > 0)
+        {
+            item.Quantity = qty;
+        }
+        StateHasChanged();
+    }
+
+// ===== به‌روزرسانی قیمت =====
+    private void UpdatePrice(EditOrderItemDto item, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out decimal price) && price > 0)
+        {
+            item.UnitPrice = Math.Truncate(price);
+        }
+        StateHasChanged();
     }
 
     private async Task AddItem()
@@ -200,7 +226,7 @@
             ProductId = selectedProductId,
             ProductName = product.ProductName,
             Quantity = newQuantity,
-            UnitPrice = newUnitPrice
+            UnitPrice = Math.Truncate(newUnitPrice)
         });
 
         selectedProductId = 0;
@@ -272,7 +298,18 @@
 
         if (!string.IsNullOrEmpty(deliveryDateString))
         {
-            order.DeliveryDate = ConvertPersianToGregorian(deliveryDateString);
+            var normalized = deliveryDateString
+                .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
+                .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
+            var parts = normalized.Split('/');
+            if (parts.Length == 3 && 
+                int.TryParse(parts[0], out int y) && 
+                int.TryParse(parts[1], out int m) && 
+                int.TryParse(parts[2], out int d))
+            {
+                var pc = new System.Globalization.PersianCalendar();
+                order.DeliveryDate = pc.ToDateTime(y, m, d, 0, 0, 0, 0);
+            }
         }
 
         var payload = new

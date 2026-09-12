@@ -67,11 +67,12 @@ public class OrdersController : ControllerBase
         var order = await _context.Orders
             .Include(o => o.Customer)
             .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Product)
+            .ThenInclude(oi => oi.Product)
             .Where(o => o.OrderId == id)
             .Select(o => new
             {
                 o.OrderId,
+                o.CustomerId,  // ← این خط اضافه شد
                 CustomerName = o.Customer != null ? o.Customer.FullName : "نامشخص",
                 o.OrderDate,
                 o.DeliveryDate,

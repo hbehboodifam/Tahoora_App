@@ -84,8 +84,12 @@
         </div>
         <div class="card-body p-2 p-md-3">
             <div class="mb-3">
-                <label class="form-label small">تاریخ تحویل (میلادی)</label>
-                <input type="date" class="form-control form-control-sm" @bind="deliveryDate" />
+                <label class="form-label small">تاریخ تحویل</label>
+                <InputPersianDatePicker 
+                    Value="@deliveryDateString"
+                    ValueChanged="@((string value) => { deliveryDateString = value; })"
+                    Placeholder="انتخاب تاریخ تحویل"
+                    CssClass="form-control form-control-sm"/>
             </div>
 
             <div class="row g-2 mb-3">
@@ -226,6 +230,7 @@
     private string searchTerm = "";
     private int selectedCustomerId = 0;
     private string selectedCustomerName = "";
+    private string deliveryDateString = "";
     private DateTime deliveryDate = DateTime.Now.AddDays(3);
     private bool isPaid = false;
     private bool sendSms = true;
@@ -241,6 +246,12 @@
     {
         await LoadCustomers();
         await LoadProducts();
+    
+        // تنظیم تاریخ پیش‌فرض به شمسی
+        var defaultDate = DateTime.Now.AddDays(3);
+        var pc = new System.Globalization.PersianCalendar();
+        deliveryDateString = $"{pc.GetYear(defaultDate):0000}/{pc.GetMonth(defaultDate):00}/{pc.GetDayOfMonth(defaultDate):00}";
+        deliveryDate = defaultDate;
     }
 
     private async Task LoadCustomers()
@@ -385,6 +396,20 @@
         if (selectedCustomerId == 0) { await JsRuntime.InvokeVoidAsync("alert", "لطفاً یک مشتری انتخاب کنید."); return; }
         if (items.Count == 0) { await JsRuntime.InvokeVoidAsync("alert", "لطفاً حداقل یک محصول به سفارش اضافه کنید."); return; }
 
+        // تبدیل تاریخ شمسی به میلادی
+        if (!string.IsNullOrEmpty(deliveryDateString))
+        {
+            var normalized = deliveryDateString
+                .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
+                .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
+            var parts = normalized.Split('/');
+            if (parts.Length == 3 && int.TryParse(parts[0], out int y) && int.TryParse(parts[1], out int m) && int.TryParse(parts[2], out int d))
+            {
+                var pc = new System.Globalization.PersianCalendar();
+                deliveryDate = pc.ToDateTime(y, m, d, 0, 0, 0, 0);
+            }
+        }
+        
         var payload = new CreateOrderDto
         {
             CustomerId = selectedCustomerId,
