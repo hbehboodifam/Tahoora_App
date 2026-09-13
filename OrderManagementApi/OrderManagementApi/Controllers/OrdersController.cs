@@ -250,7 +250,9 @@ public class OrdersController : ControllerBase
 
         sb.AppendLine();
         sb.AppendLine($"جمع کل سفارش: {order.TotalAmount:N0} تومان");
-        sb.AppendLine($"تاریخ تحویل: {order.DeliveryDate:yyyy/MM/dd}");
+            var pc = new System.Globalization.PersianCalendar();
+        var persianDate = $"{pc.GetYear(order.DeliveryDate):0000}/{pc.GetMonth(order.DeliveryDate):00}/{pc.GetDayOfMonth(order.DeliveryDate):00}";
+        sb.AppendLine($"تاریخ تحویل: {persianDate}");                    
         sb.AppendLine();
         sb.AppendLine("از اعتماد شما سپاسگزاریم.");
         sb.AppendLine("تیم پشتیبانی محصولات طهورا");
