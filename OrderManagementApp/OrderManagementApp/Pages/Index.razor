@@ -1,21 +1,24 @@
 ﻿@page "/"
+@using ApexCharts
+@using OrderManagementApp.Helpers
 @inject HttpClient Http
 
 <div class="container-fluid px-2 px-md-3" dir="rtl">
     <h2 class="fs-5 fs-md-4 mb-3">📊 داشبورد مدیریت</h2>
 
+    <!-- ===== فیلترها ===== -->
     <div class="row g-3 mb-3">
         <div class="col-6 col-md-3">
             <label class="form-label small">از تاریخ</label>
-            <InputPersianDatePicker 
+            <InputPersianDatePicker
                 Value="@filterFromDateString"
                 ValueChanged="@((string value) => { filterFromDateString = value; })"
-                Placeholder="انتخاب تاریخ" 
+                Placeholder="انتخاب تاریخ"
                 CssClass="form-control form-control-sm"/>
         </div>
         <div class="col-6 col-md-3">
             <label class="form-label small">تا تاریخ</label>
-            <InputPersianDatePicker 
+            <InputPersianDatePicker
                 Value="@filterToDateString"
                 ValueChanged="@((string value) => { filterToDateString = value; })"
                 Placeholder="انتخاب تاریخ"
@@ -26,6 +29,7 @@
         </div>
     </div>
 
+    <!-- ===== کارت‌های آماری ===== -->
     <div class="row g-2 mb-3">
         <div class="col-6 col-md-3">
             <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
@@ -65,6 +69,91 @@
         </div>
     </div>
 
+    @if (chartsLoaded)
+    {
+        <!-- ===== نمودار فروش و سود ماهانه ===== -->
+        @if (monthlyData.Any())
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h5 class="mb-0 fs-6">📈 فروش و سود ۶ ماه اخیر</h5>
+                </div>
+                <div class="card-body p-2 p-md-3">
+                    <ApexChart TItem="MonthlyPoint"
+                               Title=""
+                               Options="monthlyChartOptions"
+                               Height="320">
+                        <ApexPointSeries TItem="MonthlyPoint"
+                                         Items="monthlyData"
+                                         Name="فروش"
+                                         SeriesType="SeriesType.Bar"
+                                         XValue="@(e => e.MonthLabel)"
+                                         YValue="@(e => e.Sales)" />
+                        <ApexPointSeries TItem="MonthlyPoint"
+                                         Items="monthlyData"
+                                         Name="سود"
+                                         SeriesType="SeriesType.Line"
+                                         XValue="@(e => e.MonthLabel)"
+                                         YValue="@(e => e.Profit)" />
+                    </ApexChart>
+                </div>
+            </div>
+        }
+
+        <div class="row g-3 mb-3">
+            <!-- ===== پرفروش‌ترین محصولات ===== -->
+            @if (topProducts.Any())
+            {
+                <div class="col-12 col-lg-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-white py-2">
+                            <h5 class="mb-0 fs-6">🏆 پرفروش‌ترین محصولات (تومان)</h5>
+                        </div>
+                        <div class="card-body p-2 p-md-3">
+                            <ApexChart TItem="TopProductPoint"
+                                       Title=""
+                                       Options="topProductsChartOptions"
+                                       Height="320">
+                                <ApexPointSeries TItem="TopProductPoint"
+                                                 Items="topProducts"
+                                                 Name="فروش"
+                                                 SeriesType="SeriesType.Bar"
+                                                 XValue="@(e => e.ProductName)"
+                                                 YValue="@(e => e.Revenue)" />
+                            </ApexChart>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- ===== توزیع هزینه‌ها ===== -->
+            @if (expensesByCategory.Any())
+            {
+                <div class="col-12 col-lg-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-white py-2">
+                            <h5 class="mb-0 fs-6">💸 توزیع هزینه‌ها بر اساس دسته</h5>
+                        </div>
+                        <div class="card-body p-2 p-md-3 d-flex justify-content-center">
+                            <ApexChart TItem="ExpensePoint"
+                                       Title=""
+                                       Options="expensesChartOptions"
+                                       Height="320">
+                                <ApexPointSeries TItem="ExpensePoint"
+                                                 Items="expensesByCategory"
+                                                 Name="هزینه"
+                                                 SeriesType="SeriesType.Donut"
+                                                 XValue="@(e => e.CategoryName)"
+                                                 YValue="@(e => e.Amount)" />
+                            </ApexChart>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ===== آخرین سفارشات ===== -->
     <div class="card shadow-sm">
         <div class="card-header bg-white py-2">
             <h5 class="mb-0 fs-6">📋 آخرین سفارشات</h5>
@@ -115,38 +204,120 @@
     private string? filterToDateString;
     private DateTime? filterFromDate;
     private DateTime? filterToDate;
+
     private int totalOrders = 0;
     private decimal totalRevenue = 0;
     private int totalCustomers = 0;
     private int pendingPayments = 0;
     private List<RecentOrder> recentOrders = new();
 
+    // ===== داده‌های نمودار =====
+    private List<MonthlyPoint> monthlyData = new();
+    private List<TopProductPoint> topProducts = new();
+    private List<ExpensePoint> expensesByCategory = new();
+    private bool chartsLoaded = false;
+
+    // ===== تنظیمات نمودارها =====
+    private ApexChartOptions<MonthlyPoint> monthlyChartOptions = new()
+    {
+        Chart = new Chart { FontFamily = "Tahoma, sans-serif" },
+        Colors = new List<string> { "#3498db", "#2ecc71" },
+        PlotOptions = new PlotOptions
+        {
+            Bar = new PlotOptionsBar { ColumnWidth = "55%", BorderRadius = 4 }
+        },
+        Legend = new Legend { Position = LegendPosition.Top, HorizontalAlign = ApexCharts.Align.Center },
+        DataLabels = new DataLabels { Enabled = false },
+        Yaxis = new List<YAxis>
+        {
+            new YAxis
+            {
+                Labels = new YAxisLabels
+                {
+                    Formatter = "function(val) { return val.toLocaleString('fa-IR'); }"
+                }
+            }
+        },
+        Tooltip = new Tooltip
+        {
+            Y = new TooltipY
+            {
+                Formatter = "function(val) { return val.toLocaleString('fa-IR') + ' تومان'; }"
+            }
+        }
+    };
+
+    private ApexChartOptions<TopProductPoint> topProductsChartOptions = new()
+    {
+        Chart = new Chart { FontFamily = "Tahoma, sans-serif" },
+        Colors = new List<string> { "#6C63FF" },
+        PlotOptions = new PlotOptions
+        {
+            Bar = new PlotOptionsBar
+            {
+                Horizontal = true,
+                BorderRadius = 4,
+                Distributed = true
+            }
+        },
+        DataLabels = new DataLabels { Enabled = false },
+        Legend = new Legend { Show = false },
+        Xaxis = new XAxis
+        {
+            Labels = new XAxisLabels { Rotate = -45, Style = new AxisLabelStyle { FontSize = "11px" } }
+        },
+        Tooltip = new Tooltip
+        {
+            Y = new TooltipY
+            {
+                Formatter = "function(val) { return val.toLocaleString('fa-IR') + ' تومان'; }"
+            }
+        }
+    };
+
+    private ApexChartOptions<ExpensePoint> expensesChartOptions = new()
+    {
+        Chart = new Chart { FontFamily = "Tahoma, sans-serif" },
+        Colors = new List<string> { "#e74c3c", "#e67e22", "#f1c40f", "#9b59b6", "#3498db", "#1abc9c", "#95a5a6" },
+        Labels = new List<string>(),
+        Legend = new Legend { Position = LegendPosition.Bottom, HorizontalAlign = ApexCharts.Align.Center },
+        DataLabels = new DataLabels { Enabled = true },
+        Tooltip = new Tooltip
+        {
+            Y = new TooltipY
+            {
+                Formatter = "function(val) { return val.toLocaleString('fa-IR') + ' تومان'; }"
+            }
+        }
+    };
+
     protected override async Task OnInitializedAsync()
     {
         await LoadData(null, null);
+        await LoadCharts(null, null);
     }
 
     private async Task ApplyFilters()
     {
-        // تبدیل تاریخ شمسی به میلادی
         filterFromDate = ConvertPersianToGregorian(filterFromDateString);
         filterToDate = ConvertPersianToGregorian(filterToDateString);
-    
+
         await LoadData(filterFromDate, filterToDate);
+        await LoadCharts(filterFromDate, filterToDate);
     }
 
     private DateTime? ConvertPersianToGregorian(string? persianDate)
     {
         if (string.IsNullOrEmpty(persianDate)) return null;
-    
+
         var normalized = persianDate
             .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
             .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
         var parts = normalized.Split('/');
-    
-        if (parts.Length == 3 && 
-            int.TryParse(parts[0], out int y) && 
-            int.TryParse(parts[1], out int m) && 
+
+        if (parts.Length == 3 &&
+            int.TryParse(parts[0], out int y) &&
+            int.TryParse(parts[1], out int m) &&
             int.TryParse(parts[2], out int d))
         {
             var pc = new System.Globalization.PersianCalendar();
@@ -162,7 +333,7 @@
             var url = "api/dashboard/stats";
             var queryParams = new List<string>();
             if (from.HasValue) queryParams.Add($"from={from.Value:yyyy-MM-dd}");
-            if (to.HasValue) queryParams.Add($"to={to.Value:yyyy-MM-dd}");
+            if (to.HasValue)   queryParams.Add($"to={to.Value:yyyy-MM-dd}");
             if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
 
             var result = await Http.GetFromJsonAsync<DashboardStats>(url);
@@ -178,6 +349,29 @@
         catch { }
     }
 
+    private async Task LoadCharts(DateTime? from, DateTime? to)
+    {
+        try
+        {
+            var url = "api/dashboard/charts";
+            var queryParams = new List<string>();
+            if (from.HasValue) queryParams.Add($"from={from.Value:yyyy-MM-dd}");
+            if (to.HasValue)   queryParams.Add($"to={to.Value:yyyy-MM-dd}");
+            if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
+
+            var result = await Http.GetFromJsonAsync<DashboardCharts>(url);
+            if (result != null)
+            {
+                monthlyData = result.MonthlyData ?? new();
+                topProducts = result.TopProducts ?? new();
+                expensesByCategory = result.ExpensesByCategory ?? new();
+            }
+            chartsLoaded = true;
+        }
+        catch { chartsLoaded = true; }
+    }
+
+    // ===== DTO ها =====
     public class DashboardStats
     {
         public int TotalOrders { get; set; }
@@ -194,5 +388,31 @@
         public DateTime OrderDate { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsPaid { get; set; }
+    }
+
+    public class DashboardCharts
+    {
+        public List<MonthlyPoint> MonthlyData { get; set; } = new();
+        public List<TopProductPoint> TopProducts { get; set; } = new();
+        public List<ExpensePoint> ExpensesByCategory { get; set; } = new();
+    }
+
+    public class MonthlyPoint
+    {
+        public string MonthLabel { get; set; } = "";
+        public decimal Sales { get; set; }
+        public decimal Profit { get; set; }
+    }
+
+    public class TopProductPoint
+    {
+        public string ProductName { get; set; } = "";
+        public decimal Revenue { get; set; }
+    }
+
+    public class ExpensePoint
+    {
+        public string CategoryName { get; set; } = "";
+        public decimal Amount { get; set; }
     }
 }
