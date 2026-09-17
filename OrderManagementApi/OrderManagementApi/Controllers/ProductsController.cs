@@ -33,6 +33,9 @@ public class ProductsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Product product)
     {
+        if (string.IsNullOrEmpty(product.Unit))
+            product.Unit = "کیلوگرم";
+
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = product.ProductId }, product);
@@ -42,7 +45,15 @@ public class ProductsController : ControllerBase
     public async Task<IActionResult> Update(int id, [FromBody] Product product)
     {
         if (id != product.ProductId) return BadRequest();
-        _context.Entry(product).State = EntityState.Modified;
+
+        var existing = await _context.Products.FindAsync(id);
+        if (existing == null) return NotFound();
+
+        existing.ProductName = product.ProductName;
+        existing.UnitPrice = product.UnitPrice;
+        existing.Unit = string.IsNullOrEmpty(product.Unit) ? "کیلوگرم" : product.Unit;
+        existing.Description = product.Description;
+
         await _context.SaveChangesAsync();
         return NoContent();
     }

@@ -15,13 +15,21 @@
             </div>
             <div class="card-body p-2 p-md-3">
                 <div class="row g-2">
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-md-4">
                         <label class="form-label small">نام محصول</label>
                         <input class="form-control form-control-sm" @bind="formModel.ProductName" />
                     </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small">قیمت واحد</label>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label small">قیمت واحد (تومان)</label>
                         <input class="form-control form-control-sm" @bind="formModel.UnitPrice" />
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label small">واحد</label>
+                        <select class="form-select form-select-sm" @bind="formModel.Unit">
+                            <option value="کیلوگرم">کیلوگرم</option>
+                            <option value="عدد">عدد</option>
+                            <option value="بسته">بسته</option>
+                        </select>
                     </div>
                 </div>
                 <div class="mt-3">
@@ -37,7 +45,8 @@
             <thead>
                 <tr>
                     <th class="small">نام محصول</th>
-                    <th class="small">قیمت واحد</th>
+                    <th class="small">قیمت واحد (تومان)</th>
+                    <th class="small">واحد</th>
                     <th class="small">عملیات</th>
                 </tr>
             </thead>
@@ -53,6 +62,7 @@
                         <tr>
                             <td class="small">@p.ProductName</td>
                             <td class="small">@p.UnitPrice.ToString("N0")</td>
+                            <td class="small">@p.Unit</td>
                             <td>
                                 <button class="btn btn-sm btn-warning" @onclick="() => EditProduct(p)">✏️</button>
                                 <button class="btn btn-sm btn-danger" @onclick="() => DeleteProduct(p.ProductId)">🗑️</button>
@@ -87,6 +97,7 @@
         public int ProductId { get; set; }
         public string ProductName { get; set; } = "";
         public decimal UnitPrice { get; set; }
+        public string Unit { get; set; } = "کیلوگرم";
         public string? Description { get; set; }
     }
 
@@ -134,7 +145,13 @@
     private void EditProduct(ProductDto p)
     {
         editingProduct = p;
-        formModel = new() { ProductId = p.ProductId, ProductName = p.ProductName, UnitPrice = p.UnitPrice };
+        formModel = new() 
+        { 
+            ProductId = p.ProductId, 
+            ProductName = p.ProductName, 
+            UnitPrice = p.UnitPrice,
+            Unit = p.Unit
+        };
         showForm = true;
     }
 

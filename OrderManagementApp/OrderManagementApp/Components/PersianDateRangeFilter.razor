@@ -1,0 +1,150 @@
+﻿@* 
+    کامپوننت مشترک فیلتر بازه‌ی تاریخ شمسی
+    - از تقویم شمسی استفاده می‌کنه
+    - مقادیر رو به صورت DateTime? به والد برمی‌گردونه
+    - قابل استفاده در همه‌ی صفحات
+*@
+
+<div class="row g-2">
+    <div class="col-6 col-md-3">
+        <label class="form-label small">@FromLabel</label>
+        <InputPersianDatePicker
+            Value="@fromDateString"
+            ValueChanged="@((string value) => { fromDateString = value; OnFromChanged(); })"
+            Placeholder="انتخاب تاریخ"
+            CssClass="form-control form-control-sm" />
+    </div>
+    <div class="col-6 col-md-3">
+        <label class="form-label small">@ToLabel</label>
+        <InputPersianDatePicker
+            Value="@toDateString"
+            ValueChanged="@((string value) => { toDateString = value; OnToChanged(); })"
+            Placeholder="انتخاب تاریخ"
+            CssClass="form-control form-control-sm" />
+    </div>
+    @if (ShowApplyButton)
+    {
+        <div class="col-12 col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary btn-sm w-100" @onclick="OnApplyClicked">
+                🔍 @ApplyButtonText
+            </button>
+        </div>
+    }
+    @if (ShowExportButton)
+    {
+        <div class="col-12 col-md-3 d-flex align-items-end">
+            <button class="btn btn-success btn-sm w-100" @onclick="OnExportClicked">
+                📤 @ExportButtonText
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    // ===== پارامترها =====
+    [Parameter] public string FromLabel { get; set; } = "از تاریخ";
+    [Parameter] public string ToLabel { get; set; } = "تا تاریخ";
+    [Parameter] public bool ShowApplyButton { get; set; } = true;
+    [Parameter] public bool ShowExportButton { get; set; } = false;
+    [Parameter] public string ApplyButtonText { get; set; } = "اعمال فیلتر";
+    [Parameter] public string ExportButtonText { get; set; } = "خروجی اکسل";
+
+    // ===== مقدار بازه‌ی تاریخ (به والد داده می‌شه) =====
+    [Parameter] public DateTime? FromDate { get; set; }
+    [Parameter] public EventCallback<DateTime?> FromDateChanged { get; set; }
+
+    [Parameter] public DateTime? ToDate { get; set; }
+    [Parameter] public EventCallback<DateTime?> ToDateChanged { get; set; }
+
+    // ===== رویدادها =====
+    [Parameter] public EventCallback OnApply { get; set; }
+    [Parameter] public EventCallback OnExport { get; set; }
+
+    // ===== متغیرهای داخلی (نمایش شمسی) =====
+    private string? fromDateString;
+    private string? toDateString;
+
+    protected override void OnInitialized()
+    {
+        // مقداردهی اولیه از پارامترها
+        UpdateStringsFromDates();
+    }
+
+    protected override void OnParametersSet()
+    {
+        // اگه والد مقدار FromDate/ToDate رو تغییر داد، نمایش رو آپدیت کن
+        UpdateStringsFromDates();
+    }
+
+    private void UpdateStringsFromDates()
+    {
+        var pc = new System.Globalization.PersianCalendar();
+
+        if (FromDate.HasValue)
+        {
+            fromDateString = $"{pc.GetYear(FromDate.Value):0000}/{pc.GetMonth(FromDate.Value):00}/{pc.GetDayOfMonth(FromDate.Value):00}";
+        }
+        else
+        {
+            fromDateString = null;
+        }
+
+        if (ToDate.HasValue)
+        {
+            toDateString = $"{pc.GetYear(ToDate.Value):0000}/{pc.GetMonth(ToDate.Value):00}/{pc.GetDayOfMonth(ToDate.Value):00}";
+        }
+        else
+        {
+            toDateString = null;
+        }
+    }
+
+    private async void OnFromChanged()
+    {
+        var newDate = ConvertPersianToGregorian(fromDateString);
+        await FromDateChanged.InvokeAsync(newDate);
+    }
+
+    private async void OnToChanged()
+    {
+        var newDate = ConvertPersianToGregorian(toDateString);
+        await ToDateChanged.InvokeAsync(newDate);
+    }
+
+    private async Task OnApplyClicked()
+    {
+        await OnApply.InvokeAsync();
+    }
+
+    private async Task OnExportClicked()
+    {
+        await OnExport.InvokeAsync();
+    }
+
+    // ===== تبدیل تاریخ شمسی به میلادی =====
+    private DateTime? ConvertPersianToGregorian(string? persianDate)
+    {
+        if (string.IsNullOrEmpty(persianDate)) return null;
+
+        try
+        {
+            var normalized = persianDate
+                .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
+                .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
+
+            var parts = normalized.Split('/');
+            if (parts.Length != 3) return null;
+
+            if (!int.TryParse(parts[0], out int y)) return null;
+            if (!int.TryParse(parts[1], out int m)) return null;
+            if (!int.TryParse(parts[2], out int d)) return null;
+
+            var pc = new System.Globalization.PersianCalendar();
+            return pc.ToDateTime(y, m, d, 0, 0, 0, 0);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}

@@ -1,0 +1,339 @@
+﻿@page "/reports/product-sales"
+@using OrderManagementApp.Helpers
+@using OrderManagementApp.Components
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">📦 گزارش فروش محصولات</h2>
+
+    <PersianDateRangeFilter
+        FromLabel="از تاریخ تحویل"
+        ToLabel="تا تاریخ تحویل"
+        @bind-FromDate="fromDate"
+        @bind-ToDate="toDate"
+        ShowExportButton="true"
+        OnApply="ApplyFilter"
+        OnExport="ExportToExcel" />
+
+    @if (isLoading)
+    {
+        <div class="text-center text-muted mt-5">
+            <p>⏳ در حال بارگذاری...</p>
+        </div>
+    }
+    else if (report == null || !report.HasData)
+    {
+        <div class="alert alert-info mt-3">
+            در بازه‌ی انتخاب‌شده، هیچ فروشی وجود ندارد.
+        </div>
+    }
+    else
+    {
+        <div class="row g-2 mb-3 mt-3">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💰</h5>
+                        <h6 class="text-muted small mb-0">مجموع فروش (تومان)</h6>
+                        <h4 class="mb-0">@report.TotalRevenue.ToString("N0")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">⚖️</h5>
+                        <h6 class="text-muted small mb-0">جمع وزنی</h6>
+                        <h4 class="mb-0">@report.TotalQuantity.ToString("N2")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">📋</h5>
+                        <h6 class="text-muted small mb-0">تعداد محصولات</h6>
+                        <h4 class="mb-0">@report.DistinctProducts</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">🏆</h5>
+                        <h6 class="text-muted small mb-0">پرفروش‌ترین</h6>
+                        <h6 class="mb-0 small">@report.TopProduct</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-primary text-white py-2">
+                <h5 class="mb-0 fs-6">📊 خلاصه‌ی فروش هر محصول</h5>
+            </div>
+            <div class="card-body p-2 p-md-3">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th class="small">نام محصول</th>
+                                <th class="small">تعداد</th>
+                                <th class="small">واحد</th>
+                                <th class="small">مجموع فروش (تومان)</th>
+                                <th class="small">میانگین قیمت</th>
+                                <th class="small">تعداد سفارش</th>
+                                <th class="small">تعداد مشتری</th>
+                                <th class="small">درصد</th>
+                                <th class="small">درصد تجمعی</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in report.Summary)
+                            {
+                                <tr>
+                                    <td class="small fw-bold">@s.ProductName</td>
+                                    <td class="small">@s.TotalQuantity.ToString("N2")</td>
+                                    <td class="small">@s.Unit</td>
+                                    <td class="small">@s.TotalRevenue.ToString("N0")</td>
+                                    <td class="small">@s.AveragePrice.ToString("N0")</td>
+                                    <td class="small">@s.OrderCount</td>
+                                    <td class="small">@s.DistinctCustomers</td>
+                                    <td class="small">@s.Percentage.ToString("F1")%</td>
+                                    <td class="small">
+                                        <span class="badge @(s.CumulativePercentage <= 80 ? "bg-success" : "bg-secondary")">
+                                            @s.CumulativePercentage.ToString("F1")%
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                            <tr class="table-info fw-bold">
+                                <td class="small">جمع کل</td>
+                                <td class="small">@report.TotalQuantity.ToString("N2")</td>
+                                <td class="small">-</td>
+                                <td class="small">@report.TotalRevenue.ToString("N0")</td>
+                                <td class="small">-</td>
+                                <td class="small">-</td>
+                                <td class="small">-</td>
+                                <td class="small">100%</td>
+                                <td class="small">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="small text-muted mt-2">
+                    <strong>توجه:</strong> ستون «درصد تجمعی» بر اساس اصل Pareto است. محصولاتی که درصد تجمعی آن‌ها زیر ۸۰٪ است، حدود ۸۰٪ از فروش شما را تشکیل می‌دهند (سبز = حیاتی، خاکستری = کم‌اهمیت).
+                </div>
+            </div>
+        </div>
+
+        @if (report.Comparison.Any())
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-warning text-dark py-2">
+                    <h5 class="mb-0 fs-6">📈 مقایسه با دوره‌ی قبل</h5>
+                </div>
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th class="small">نام محصول</th>
+                                    <th class="small">فروش این دوره</th>
+                                    <th class="small">فروش دوره‌ی قبل</th>
+                                    <th class="small">تغییر</th>
+                                    <th class="small">وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in report.Comparison)
+                                {
+                                    <tr>
+                                        <td class="small">@c.ProductName</td>
+                                        <td class="small">@c.CurrentRevenue.ToString("N0")</td>
+                                        <td class="small">@c.PreviousRevenue.ToString("N0")</td>
+                                        <td class="small">@(c.ChangePercent > 0 ? "+" : "")@c.ChangePercent.ToString("F1")%</td>
+                                        <td class="small">@c.Trend</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white py-2">
+                <h5 class="mb-0 fs-6">📋 سفارشات تفصیلی (تاریخ تحویل → محصول)</h5>
+            </div>
+            <div class="card-body p-2 p-md-3">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th class="small">تاریخ تحویل</th>
+                                <th class="small">محصول</th>
+                                <th class="small">مشتری</th>
+                                <th class="small">تعداد</th>
+                                <th class="small">قیمت واحد</th>
+                                <th class="small">جمع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in report.Details)
+                            {
+                                <tr>
+                                    <td class="small">@d.DeliveryDate.ToPersianDate()</td>
+                                    <td class="small">@d.ProductName</td>
+                                    <td class="small">@d.CustomerName</td>
+                                    <td class="small">@d.Quantity.ToString("N2")</td>
+                                    <td class="small">@d.UnitPrice.ToString("N0")</td>
+                                    <td class="small">@d.Total.ToString("N0")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private ProductSalesReportDto? report;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fromDate = DateTime.Now.AddMonths(-1);
+        toDate = DateTime.Now;
+
+        await LoadReport();
+    }
+
+    private async Task ApplyFilter()
+    {
+        await LoadReport();
+    }
+
+    private async Task LoadReport()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var url = "api/Reports/product-sales";
+            var query = new List<string>();
+
+            if (fromDate.HasValue)
+                query.Add($"from={fromDate.Value:yyyy-MM-dd}");
+            if (toDate.HasValue)
+                query.Add($"to={toDate.Value:yyyy-MM-dd}");
+
+            if (query.Any())
+                url += "?" + string.Join("&", query);
+
+            report = await Http.GetFromJsonAsync<ProductSalesReportDto>(url);
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا در بارگذاری: {ex.Message}");
+            report = null;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExportToExcel()
+    {
+        if (report == null || !report.HasData)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "داده‌ای برای خروجی وجود ندارد.");
+            return;
+        }
+
+        var sb = new System.Text.StringBuilder();
+
+        sb.AppendLine("خلاصه فروش محصولات");
+        sb.AppendLine("نام محصول,تعداد,واحد,مجموع فروش,میانگین قیمت,تعداد سفارش,تعداد مشتری,درصد,درصد تجمعی");
+        foreach (var s in report.Summary)
+        {
+            sb.AppendLine($"{s.ProductName},{s.TotalQuantity:N2},{s.Unit},{s.TotalRevenue:N0},{s.AveragePrice:N0},{s.OrderCount},{s.DistinctCustomers},{s.Percentage:F1}%,{s.CumulativePercentage:F1}%");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine("مقایسه با دوره قبل");
+        sb.AppendLine("نام محصول,فروش این دوره,فروش دوره قبل,تغییر درصد,وضعیت");
+        foreach (var c in report.Comparison)
+        {
+            sb.AppendLine($"{c.ProductName},{c.CurrentRevenue:N0},{c.PreviousRevenue:N0},{c.ChangePercent:F1}%,{c.Trend}");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine("سفارشات تفصیلی");
+        sb.AppendLine("تاریخ تحویل,محصول,مشتری,تعداد,قیمت واحد,جمع");
+        foreach (var d in report.Details)
+        {
+            sb.AppendLine($"{d.DeliveryDate.ToPersianDate()},{d.ProductName},{d.CustomerName},{d.Quantity:N2},{d.UnitPrice:N0},{d.Total:N0}");
+        }
+
+        var csv = sb.ToString();
+        var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray();
+        var base64 = Convert.ToBase64String(bytes);
+        var fileName = $"ProductSalesReport_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+        await JsRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+    }
+
+    public class ProductSalesReportDto
+    {
+        public List<SummaryItem> Summary { get; set; } = new();
+        public List<DetailItem> Details { get; set; } = new();
+        public List<ComparisonItem> Comparison { get; set; } = new();
+        public decimal TotalRevenue { get; set; }
+        public decimal TotalQuantity { get; set; }
+        public int DistinctProducts { get; set; }
+        public string? TopProduct { get; set; }
+        public bool HasData { get; set; }
+    }
+
+    public class SummaryItem
+    {
+        public string ProductName { get; set; } = "";
+        public string Unit { get; set; } = "کیلوگرم";
+        public decimal TotalQuantity { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public decimal AveragePrice { get; set; }
+        public int OrderCount { get; set; }
+        public int DistinctCustomers { get; set; }
+        public double Percentage { get; set; }
+        public double CumulativePercentage { get; set; }
+    }
+
+    public class DetailItem
+    {
+        public DateTime DeliveryDate { get; set; }
+        public string ProductName { get; set; } = "";
+        public string CustomerName { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal Total { get; set; }
+    }
+
+    public class ComparisonItem
+    {
+        public string ProductName { get; set; } = "";
+        public decimal CurrentRevenue { get; set; }
+        public decimal PreviousRevenue { get; set; }
+        public double ChangePercent { get; set; }
+        public string Trend { get; set; } = "";
+    }
+}

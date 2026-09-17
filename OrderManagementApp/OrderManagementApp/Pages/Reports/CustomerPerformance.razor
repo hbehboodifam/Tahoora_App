@@ -1,0 +1,331 @@
+﻿@page "/reports/customer-performance"
+@using OrderManagementApp.Helpers
+@using OrderManagementApp.Components
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">👥 گزارش عملکرد مشتریان</h2>
+
+    <!-- ===== فیلترها ===== -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <label class="form-label small">از تاریخ سفارش</label>
+            <InputPersianDatePicker
+                Value="@fromDateString"
+                ValueChanged="@((string value) => { fromDateString = value; })"
+                Placeholder="انتخاب تاریخ"
+                CssClass="form-control form-control-sm" />
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label small">تا تاریخ سفارش</label>
+            <InputPersianDatePicker
+                Value="@toDateString"
+                ValueChanged="@((string value) => { toDateString = value; })"
+                Placeholder="انتخاب تاریخ"
+                CssClass="form-control form-control-sm" />
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label small">دسته‌بندی</label>
+            <select class="form-select form-select-sm" @bind="filterCategory">
+                <option value="All">همه</option>
+                <option value="VIP">🏆 VIP</option>
+                <option value="Loyal">🟢 وفادار</option>
+                <option value="Normal">🟡 معمولی</option>
+                <option value="AtRisk">🔴 در معرض ریزش</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary btn-sm w-100" @onclick="ApplyFilter">🔍 اعمال فیلتر</button>
+        </div>
+        <div class="col-6 col-md-2 d-flex align-items-end">
+            <button class="btn btn-success btn-sm w-100" @onclick="ExportToExcel">📤 خروجی اکسل</button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center text-muted mt-5">
+            <p>⏳ در حال بارگذاری...</p>
+        </div>
+    }
+    else if (report == null || !report.HasData)
+    {
+        <div class="alert alert-info mt-3">
+            در بازه‌ی انتخاب‌شده، هیچ مشتری فعالی وجود ندارد.
+        </div>
+    }
+    else
+    {
+        <!-- ===== کارت‌های آماری ===== -->
+        <div class="row g-2 mb-3 mt-3">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">👥</h5>
+                        <h6 class="text-muted small mb-0">مشتریان فعال</h6>
+                        <h4 class="mb-0">@report.TotalActiveCustomers</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💰</h5>
+                        <h6 class="text-muted small mb-0">مجموع خرید (تومان)</h6>
+                        <h4 class="mb-0">@report.TotalRevenue.ToString("N0")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💸</h5>
+                        <h6 class="text-muted small mb-0">مجموع بدهی (تومان)</h6>
+                        <h4 class="mb-0 text-danger">@report.TotalDebt.ToString("N0")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">⚠️</h5>
+                        <h6 class="text-muted small mb-0">در معرض ریزش</h6>
+                        <h4 class="mb-0 text-warning">@report.ChurnRiskCount</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== جدول اصلی ===== -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white py-2">
+                <h5 class="mb-0 fs-6">📊 عملکرد مشتریان (تحلیل RFM)</h5>
+            </div>
+            <div class="card-body p-2 p-md-3">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th class="small">مشتری</th>
+                                <th class="small">سفارش</th>
+                                <th class="small">مجموع خرید</th>
+                                <th class="small">میانگین سفارش</th>
+                                <th class="small">محصولات</th>
+                                <th class="small">آخرین خرید</th>
+                                <th class="small">روز گذشته</th>
+                                <th class="small">بدهی</th>
+                                <th class="small">R</th>
+                                <th class="small">F</th>
+                                <th class="small">M</th>
+                                <th class="small">امتیاز</th>
+                                <th class="small">دسته</th>
+                                <th class="small">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in report.Customers)
+                            {
+                                <tr>
+                                    <td class="small fw-bold">@c.CustomerName</td>
+                                    <td class="small">@c.OrderCount</td>
+                                    <td class="small">@c.TotalPurchase.ToString("N0")</td>
+                                    <td class="small">@c.AverageOrderValue.ToString("N0")</td>
+                                    <td class="small">@c.DistinctProducts</td>
+                                    <td class="small">@c.LastOrderDate.ToPersianDate()</td>
+                                    <td class="small">@c.DaysSinceLastOrder</td>
+                                    <td class="small @(c.Debt > 0 ? "text-danger fw-bold" : "")">@c.Debt.ToString("N0")</td>
+                                    <td class="small">@c.RScore</td>
+                                    <td class="small">@c.FScore</td>
+                                    <td class="small">@c.MScore</td>
+                                    <td class="small fw-bold">@c.TotalScore</td>
+                                    <td class="small">@c.Category</td>
+                                    <td class="small">
+                                        @if (c.CategoryKey == "AtRisk")
+                                        {
+                                            <button class="btn btn-sm btn-warning" @onclick="() => SendReminderSms(c)" title="ارسال پیامک یادآوری">📱</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="small text-muted mt-2">
+                    <strong>راهنما:</strong>
+                    <span class="ms-2">🏆 VIP (امتیاز ۸-۹)</span>
+                    <span class="ms-2">🟢 وفادار (۶-۷)</span>
+                    <span class="ms-2">🟡 معمولی (۴-۵)</span>
+                    <span class="ms-2">🔴 در معرض ریزش (۳)</span>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string? fromDateString;
+    private string? toDateString;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private string filterCategory = "All";
+    private CustomerPerformanceReportDto? report;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateTime.Now;
+        var threeMonthsAgo = today.AddMonths(-3);
+
+        var pc = new System.Globalization.PersianCalendar();
+        fromDateString = $"{pc.GetYear(threeMonthsAgo):0000}/{pc.GetMonth(threeMonthsAgo):00}/{pc.GetDayOfMonth(threeMonthsAgo):00}";
+        toDateString = $"{pc.GetYear(today):0000}/{pc.GetMonth(today):00}/{pc.GetDayOfMonth(today):00}";
+
+        fromDate = threeMonthsAgo;
+        toDate = today;
+
+        await LoadReport();
+    }
+
+    private async Task ApplyFilter()
+    {
+        fromDate = ConvertPersianToGregorian(fromDateString);
+        toDate = ConvertPersianToGregorian(toDateString);
+        await LoadReport();
+    }
+
+    private async Task LoadReport()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var url = "api/Reports/customer-performance";
+            var query = new List<string>();
+
+            if (fromDate.HasValue)
+                query.Add($"from={fromDate.Value:yyyy-MM-dd}");
+            if (toDate.HasValue)
+                query.Add($"to={toDate.Value:yyyy-MM-dd}");
+            if (!string.IsNullOrEmpty(filterCategory))
+                query.Add($"category={filterCategory}");
+
+            if (query.Any())
+                url += "?" + string.Join("&", query);
+
+            report = await Http.GetFromJsonAsync<CustomerPerformanceReportDto>(url);
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا در بارگذاری: {ex.Message}");
+            report = null;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SendReminderSms(CustomerItem customer)
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+            $"ارسال پیامک یادآوری به {customer.CustomerName}؟\n\n" +
+            $"آخرین خرید: {customer.LastOrderDate.ToPersianDate()}\n" +
+            $"روزهای گذشته: {customer.DaysSinceLastOrder}");
+
+        if (!confirmed) return;
+
+        try
+        {
+            var response = await Http.PostAsync($"api/Reports/send-reminder/{customer.CustomerId}", null);
+            if (response.IsSuccessStatusCode)
+            {
+                await JsRuntime.InvokeVoidAsync("alert", "✅ پیامک یادآوری با موفقیت ارسال شد.");
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+        }
+    }
+
+    private async Task ExportToExcel()
+    {
+        if (report == null || !report.HasData)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "داده‌ای برای خروجی وجود ندارد.");
+            return;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("گزارش عملکرد مشتریان (RFM)");
+        sb.AppendLine("مشتری,تعداد سفارش,مجموع خرید,میانگین سفارش,تعداد محصولات,آخرین خرید,روز گذشته,بدهی,R,F,M,امتیاز,دسته");
+
+        foreach (var c in report.Customers)
+        {
+            sb.AppendLine($"{c.CustomerName},{c.OrderCount},{c.TotalPurchase:N0},{c.AverageOrderValue:N0},{c.DistinctProducts},{c.LastOrderDate.ToPersianDate()},{c.DaysSinceLastOrder},{c.Debt:N0},{c.RScore},{c.FScore},{c.MScore},{c.TotalScore},{c.Category}");
+        }
+
+        var csv = sb.ToString();
+        var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray();
+        var base64 = Convert.ToBase64String(bytes);
+        var fileName = $"CustomerPerformance_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+        await JsRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+    }
+
+    private DateTime? ConvertPersianToGregorian(string? persianDate)
+    {
+        if (string.IsNullOrEmpty(persianDate)) return null;
+        try
+        {
+            var normalized = persianDate
+                .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
+                .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
+            var parts = normalized.Split('/');
+            if (parts.Length != 3) return null;
+            if (!int.TryParse(parts[0], out int y)) return null;
+            if (!int.TryParse(parts[1], out int m)) return null;
+            if (!int.TryParse(parts[2], out int d)) return null;
+            var pc = new System.Globalization.PersianCalendar();
+            return pc.ToDateTime(y, m, d, 0, 0, 0, 0);
+        }
+        catch { return null; }
+    }
+
+    public class CustomerPerformanceReportDto
+    {
+        public List<CustomerItem> Customers { get; set; } = new();
+        public int TotalActiveCustomers { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public decimal TotalDebt { get; set; }
+        public int ChurnRiskCount { get; set; }
+        public bool HasData { get; set; }
+    }
+
+    public class CustomerItem
+    {
+        public int CustomerId { get; set; }
+        public string CustomerName { get; set; } = "";
+        public int OrderCount { get; set; }
+        public decimal TotalPurchase { get; set; }
+        public decimal AverageOrderValue { get; set; }
+        public int DistinctProducts { get; set; }
+        public DateTime LastOrderDate { get; set; }
+        public int DaysSinceLastOrder { get; set; }
+        public decimal Debt { get; set; }
+        public int RScore { get; set; }
+        public int FScore { get; set; }
+        public int MScore { get; set; }
+        public int TotalScore { get; set; }
+        public string Category { get; set; } = "";
+        public string CategoryKey { get; set; } = "";
+    }
+}

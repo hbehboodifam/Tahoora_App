@@ -7,36 +7,15 @@
     <h2 class="fs-5 fs-md-4 mb-3">🏭 گزارش تولید</h2>
 
     <!-- ===== فیلترها ===== -->
-    <div class="row g-2 mb-3">
-        <div class="col-6 col-md-3">
-            <label class="form-label small">از تاریخ تحویل</label>
-            <InputPersianDatePicker
-                Value="@fromDateString"
-                ValueChanged="@((string value) => { fromDateString = value; })"
-                Placeholder="انتخاب تاریخ"
-                CssClass="form-control form-control-sm"
-            />
-        </div>
-        <div class="col-6 col-md-3">
-            <label class="form-label small">تا تاریخ تحویل</label>
-            <InputPersianDatePicker
-                Value="@toDateString"
-                ValueChanged="@((string value) => { toDateString = value; })"
-                Placeholder="انتخاب تاریخ"
-                CssClass="form-control form-control-sm"
-            />
-        </div>
-        <div class="col-12 col-md-3 d-flex align-items-end">
-            <button class="btn btn-primary btn-sm w-100" @onclick="ApplyFilter">
-                🔍 اعمال فیلتر
-            </button>
-        </div>
-        <div class="col-12 col-md-3 d-flex align-items-end">
-            <button class="btn btn-success btn-sm w-100" @onclick="ExportToExcel">
-                📤 خروجی اکسل
-            </button>
-        </div>
-    </div>
+    <!-- ===== فیلترها (کامپوننت مشترک) ===== -->
+    <PersianDateRangeFilter
+        FromLabel="از تاریخ تحویل"
+        ToLabel="تا تاریخ تحویل"
+        @bind-FromDate="fromDate"
+        @bind-ToDate="toDate"
+        ShowExportButton="true"
+        OnApply="ApplyFilter"
+        OnExport="ExportToExcel" />
 
     @if (isLoading)
     {
@@ -156,8 +135,6 @@
 </div>
 
 @code {
-    private string? fromDateString;
-    private string? toDateString;
     private DateTime? fromDate;
     private DateTime? toDate;
     private ProductionReportDto? report;
@@ -166,23 +143,14 @@
     protected override async Task OnInitializedAsync()
     {
         // پیش‌فرض: از امروز تا ۷ روز آینده
-        var today = DateTime.Now;
-        var nextWeek = today.AddDays(7);
-
-        var pc = new System.Globalization.PersianCalendar();
-        fromDateString = $"{pc.GetYear(today):0000}/{pc.GetMonth(today):00}/{pc.GetDayOfMonth(today):00}";
-        toDateString = $"{pc.GetYear(nextWeek):0000}/{pc.GetMonth(nextWeek):00}/{pc.GetDayOfMonth(nextWeek):00}";
-
-        fromDate = today;
-        toDate = nextWeek;
+        fromDate = DateTime.Now;
+        toDate = DateTime.Now.AddDays(7);
 
         await LoadReport();
     }
 
     private async Task ApplyFilter()
     {
-        fromDate = ConvertPersianToGregorian(fromDateString);
-        toDate = ConvertPersianToGregorian(toDateString);
         await LoadReport();
     }
 
@@ -215,32 +183,6 @@
         {
             isLoading = false;
             StateHasChanged();
-        }
-    }
-
-    private DateTime? ConvertPersianToGregorian(string? persianDate)
-    {
-        if (string.IsNullOrEmpty(persianDate)) return null;
-
-        try
-        {
-            var normalized = persianDate
-                .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
-                .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
-
-            var parts = normalized.Split('/');
-            if (parts.Length != 3) return null;
-
-            if (!int.TryParse(parts[0], out int y)) return null;
-            if (!int.TryParse(parts[1], out int m)) return null;
-            if (!int.TryParse(parts[2], out int d)) return null;
-
-            var pc = new System.Globalization.PersianCalendar();
-            return pc.ToDateTime(y, m, d, 0, 0, 0, 0);
-        }
-        catch
-        {
-            return null;
         }
     }
 
