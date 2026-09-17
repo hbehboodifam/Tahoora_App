@@ -36,6 +36,8 @@ public class ProductsController : ControllerBase
         if (string.IsNullOrEmpty(product.Unit))
             product.Unit = "کیلوگرم";
 
+        product.RecalculateCostPrice();
+
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = product.ProductId }, product);
@@ -49,10 +51,18 @@ public class ProductsController : ControllerBase
         var existing = await _context.Products.FindAsync(id);
         if (existing == null) return NotFound();
 
-        existing.ProductName = product.ProductName;
-        existing.UnitPrice = product.UnitPrice;
-        existing.Unit = string.IsNullOrEmpty(product.Unit) ? "کیلوگرم" : product.Unit;
-        existing.Description = product.Description;
+        existing.ProductName     = product.ProductName;
+        existing.UnitPrice       = product.UnitPrice;
+        existing.Unit            = string.IsNullOrEmpty(product.Unit) ? "کیلوگرم" : product.Unit;
+        existing.Description     = product.Description;
+
+        existing.MaterialCost    = product.MaterialCost;
+        existing.PackagingCost   = product.PackagingCost;
+        existing.WastePercent    = product.WastePercent;
+        existing.LaborCost       = product.LaborCost;
+        existing.OverheadPercent = product.OverheadPercent;
+
+        existing.RecalculateCostPrice();
 
         await _context.SaveChangesAsync();
         return NoContent();

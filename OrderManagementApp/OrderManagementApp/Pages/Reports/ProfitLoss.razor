@@ -1,0 +1,339 @@
+﻿@page "/reports/profit-loss"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">💹 گزارش سود و زیان</h2>
+
+    <PersianDateRangeFilter
+        FromLabel="از تاریخ تحویل"
+        ToLabel="تا تاریخ تحویل"
+        @bind-FromDate="fromDate"
+        @bind-ToDate="toDate"
+        ShowExportButton="true"
+        OnApply="ApplyFilter"
+        OnExport="ExportToExcel" />
+
+    @if (isLoading)
+    {
+        <div class="text-center text-muted mt-5">
+            <p>⏳ در حال بارگذاری...</p>
+        </div>
+    }
+    else if (report == null || !report.HasData)
+    {
+        <div class="alert alert-info mt-3">
+            در بازه‌ی انتخاب‌شده، هیچ فروش یا هزینه‌ای وجود ندارد.
+        </div>
+    }
+    else
+    {
+        <!-- ===== کارت‌های خلاصه ===== -->
+        <div class="row g-2 mb-3 mt-3">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💰</h5>
+                        <h6 class="text-muted small mb-0">فروش کل</h6>
+                        <h5 class="mb-0">@report.TotalSales.ToString("N0")</h5>
+                        <small class="text-muted">تومان</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #e67e22 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">🏭</h5>
+                        <h6 class="text-muted small mb-0">بهای تمام‌شده (COGS)</h6>
+                        <h5 class="mb-0">@report.Cogs.ToString("N0")</h5>
+                        <small class="text-muted">تومان</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #9b59b6 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💸</h5>
+                        <h6 class="text-muted small mb-0">هزینه‌های دوره</h6>
+                        <h5 class="mb-0">@report.TotalExpenses.ToString("N0")</h5>
+                        <small class="text-muted">تومان</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid @(report.NetProfit >= 0 ? "#2ecc71" : "#e74c3c") !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">@(report.NetProfit >= 0 ? "✅" : "⚠️")</h5>
+                        <h6 class="text-muted small mb-0">سود خالص</h6>
+                        <h5 class="mb-0 @(report.NetProfit >= 0 ? "text-success" : "text-danger")">
+                            @report.NetProfit.ToString("N0")
+                        </h5>
+                        <small class="text-muted">تومان</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== جدول P&L ===== -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-primary text-white py-2">
+                <h5 class="mb-0 fs-6">📊 صورت سود و زیان</h5>
+            </div>
+            <div class="card-body p-2 p-md-3">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td class="small">فروش کل</td>
+                                <td class="small text-end fw-bold">@report.TotalSales.ToString("N0")</td>
+                                <td class="small text-muted">تومان</td>
+                            </tr>
+                            <tr>
+                                <td class="small">− بهای تمام‌شده‌ی کالای فروش‌رفته (COGS)</td>
+                                <td class="small text-end text-danger">@report.Cogs.ToString("N0")</td>
+                                <td class="small text-muted">تومان</td>
+                            </tr>
+                            <tr class="table-info">
+                                <td class="small fw-bold">= سود ناخالص</td>
+                                <td class="small text-end fw-bold">@report.GrossProfit.ToString("N0")</td>
+                                <td class="small text-muted">
+                                    <span class="badge bg-info">@report.GrossMarginPercent.ToString("F1")%</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="small">− هزینه‌های دوره‌ای</td>
+                                <td class="small text-end text-danger">@report.TotalExpenses.ToString("N0")</td>
+                                <td class="small text-muted">تومان</td>
+                            </tr>
+                            <tr class="@(report.NetProfit >= 0 ? "table-success" : "table-danger")">
+                                <td class="small fw-bold">= سود خالص</td>
+                                <td class="small text-end fw-bold">@report.NetProfit.ToString("N0")</td>
+                                <td class="small text-muted">
+                                    <span class="badge @(report.NetProfit >= 0 ? "bg-success" : "bg-danger")">
+                                        @report.NetMarginPercent.ToString("F1")%
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== تفکیک هزینه‌ها ===== -->
+        @if (report.ExpenseBreakdown.Any())
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-warning text-dark py-2">
+                    <h5 class="mb-0 fs-6">💸 تفکیک هزینه‌ها بر اساس دسته</h5>
+                </div>
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th class="small">دسته‌بندی</th>
+                                    <th class="small">مبلغ (تومان)</th>
+                                    <th class="small">درصد از کل</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var e in report.ExpenseBreakdown)
+                                {
+                                    <tr>
+                                        <td class="small">@e.CategoryName</td>
+                                        <td class="small">@e.Amount.ToString("N0")</td>
+                                        <td class="small">@e.Percentage.ToString("F1")%</td>
+                                    </tr>
+                                }
+                                <tr class="table-warning fw-bold">
+                                    <td class="small">جمع کل هزینه‌ها</td>
+                                    <td class="small">@report.TotalExpenses.ToString("N0")</td>
+                                    <td class="small">100%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ===== تفکیک سود بر اساس محصول ===== -->
+        @if (report.ProductBreakdown.Any())
+        {
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white py-2">
+                    <h5 class="mb-0 fs-6">📦 سود و زیان به تفکیک محصول</h5>
+                </div>
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th class="small">محصول</th>
+                                    <th class="small">تعداد</th>
+                                    <th class="small">فروش</th>
+                                    <th class="small">COGS</th>
+                                    <th class="small">سود</th>
+                                    <th class="small">حاشیه سود</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in report.ProductBreakdown)
+                                {
+                                    <tr>
+                                        <td class="small fw-bold">@p.ProductName</td>
+                                        <td class="small">@p.Quantity.ToString("N2")</td>
+                                        <td class="small">@p.Sales.ToString("N0")</td>
+                                        <td class="small text-danger">@p.Cogs.ToString("N0")</td>
+                                        <td class="small @(p.Profit >= 0 ? "text-success" : "text-danger")">
+                                            @p.Profit.ToString("N0")
+                                        </td>
+                                        <td class="small">
+                                            <span class="badge @(p.MarginPercent >= 20 ? "bg-success" : p.MarginPercent >= 10 ? "bg-warning text-dark" : "bg-danger")">
+                                                @p.MarginPercent.ToString("F1")%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private ProfitLossDto? report;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // پیش‌فرض: از اول ماه جاری تا امروز
+        var pc = new System.Globalization.PersianCalendar();
+        var today = DateTime.Today;
+        fromDate = new DateTime(today.Year, today.Month, 1);
+        toDate = today;
+
+        await LoadReport();
+    }
+
+    private async Task ApplyFilter()
+    {
+        await LoadReport();
+    }
+
+    private async Task LoadReport()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var url = "api/Reports/profit-loss";
+            var query = new List<string>();
+
+            if (fromDate.HasValue) query.Add($"from={fromDate.Value:yyyy-MM-dd}");
+            if (toDate.HasValue)   query.Add($"to={toDate.Value:yyyy-MM-dd}");
+
+            if (query.Any())
+                url += "?" + string.Join("&", query);
+
+            report = await Http.GetFromJsonAsync<ProfitLossDto>(url);
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا در بارگذاری: {ex.Message}");
+            report = null;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExportToExcel()
+    {
+        if (report == null || !report.HasData)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "داده‌ای برای خروجی وجود ندارد.");
+            return;
+        }
+
+        var sb = new System.Text.StringBuilder();
+
+        sb.AppendLine("گزارش سود و زیان");
+        sb.AppendLine($"از تاریخ: {fromDate?.ToPersianDate()} - تا تاریخ: {toDate?.ToPersianDate()}");
+        sb.AppendLine();
+
+        sb.AppendLine("صورت سود و زیان");
+        sb.AppendLine("شرح,مبلغ (تومان),درصد");
+        sb.AppendLine($"فروش کل,{report.TotalSales:N0},");
+        sb.AppendLine($"بهای تمام‌شده (COGS),{report.Cogs:N0},");
+        sb.AppendLine($"سود ناخالص,{report.GrossProfit:N0},{report.GrossMarginPercent:F1}%");
+        sb.AppendLine($"هزینه‌های دوره‌ای,{report.TotalExpenses:N0},");
+        sb.AppendLine($"سود خالص,{report.NetProfit:N0},{report.NetMarginPercent:F1}%");
+        sb.AppendLine();
+
+        if (report.ExpenseBreakdown.Any())
+        {
+            sb.AppendLine("تفکیک هزینه‌ها");
+            sb.AppendLine("دسته,مبلغ,درصد");
+            foreach (var e in report.ExpenseBreakdown)
+                sb.AppendLine($"{e.CategoryName},{e.Amount:N0},{e.Percentage:F1}%");
+            sb.AppendLine();
+        }
+
+        if (report.ProductBreakdown.Any())
+        {
+            sb.AppendLine("سود و زیان به تفکیک محصول");
+            sb.AppendLine("محصول,تعداد,فروش,COGS,سود,حاشیه سود");
+            foreach (var p in report.ProductBreakdown)
+                sb.AppendLine($"{p.ProductName},{p.Quantity:N2},{p.Sales:N0},{p.Cogs:N0},{p.Profit:N0},{p.MarginPercent:F1}%");
+        }
+
+        var csv = sb.ToString();
+        var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray();
+        var base64 = Convert.ToBase64String(bytes);
+        var fileName = $"ProfitLossReport_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+        await JsRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+    }
+
+    public class ProfitLossDto
+    {
+        public decimal TotalSales { get; set; }
+        public decimal Cogs { get; set; }
+        public decimal GrossProfit { get; set; }
+        public decimal TotalExpenses { get; set; }
+        public decimal NetProfit { get; set; }
+        public double GrossMarginPercent { get; set; }
+        public double NetMarginPercent { get; set; }
+        public List<ExpenseBreakdownItem> ExpenseBreakdown { get; set; } = new();
+        public List<ProductBreakdownItem> ProductBreakdown { get; set; } = new();
+        public bool HasData { get; set; }
+    }
+
+    public class ExpenseBreakdownItem
+    {
+        public string CategoryName { get; set; } = "";
+        public decimal Amount { get; set; }
+        public double Percentage { get; set; }
+    }
+
+    public class ProductBreakdownItem
+    {
+        public string ProductName { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal Sales { get; set; }
+        public decimal Cogs { get; set; }
+        public decimal Profit { get; set; }
+        public double MarginPercent { get; set; }
+    }
+}

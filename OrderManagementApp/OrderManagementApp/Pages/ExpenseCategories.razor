@@ -1,0 +1,222 @@
+﻿@page "/expense-categories"
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">🏷️ دسته‌بندی هزینه‌ها</h2>
+
+    <button class="btn btn-primary mb-3 btn-sm" @onclick="ShowAddForm">➕ افزودن دسته جدید</button>
+
+    @if (showForm)
+    {
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-primary text-white py-2">
+                <h5 class="mb-0 fs-6">@(editingCategory == null ? "افزودن دسته" : "ویرایش دسته")</h5>
+            </div>
+            <div class="card-body p-2 p-md-3">
+                <div class="row g-2">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small">نام دسته</label>
+                        <input class="form-control form-control-sm" @bind="formModel.CategoryName" placeholder="مثلاً: اجاره، برق، حقوق، تبلیغات" />
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small">توضیحات (اختیاری)</label>
+                        <input class="form-control form-control-sm" @bind="formModel.Description" />
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" @bind="formModel.IsActive" id="catActive" />
+                            <label class="form-check-label small" for="catActive">فعال</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-success btn-sm" @onclick="SaveCategory">💾 ذخیره</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="CancelForm">❌ انصراف</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="table-responsive">
+        <table class="table table-hover table-sm">
+            <thead>
+                <tr>
+                    <th class="small">نام دسته</th>
+                    <th class="small">توضیحات</th>
+                    <th class="small">وضعیت</th>
+                    <th class="small">عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (pagedCategories == null || !pagedCategories.Any())
+                {
+                    <tr><td colspan="4" class="text-center text-muted small py-2">هیچ دسته‌ای یافت نشد</td></tr>
+                }
+                else
+                {
+                    @foreach (var c in pagedCategories)
+                    {
+                        <tr>
+                            <td class="small">@c.CategoryName</td>
+                            <td class="small">@c.Description</td>
+                            <td class="small">
+                                @if (c.IsActive)
+                                {
+                                    <span class="badge bg-success">فعال</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">غیرفعال</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-warning" @onclick="() => EditCategory(c)">✏️</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteCategory(c.CategoryId)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <span class="small">صفحه @currentPage از @totalPages</span>
+            <div class="d-flex gap-1 flex-wrap">
+                <button class="btn btn-sm btn-outline-primary" disabled="@(currentPage == 1)" @onclick="() => GoToPage(currentPage - 1)">قبلی</button>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    int pageNumber = i;
+                    <button class="btn btn-sm @(pageNumber == currentPage ? "btn-primary" : "btn-outline-secondary")" @onclick="() => GoToPage(pageNumber)">@pageNumber</button>
+                }
+                <button class="btn btn-sm btn-outline-primary" disabled="@(currentPage == totalPages)" @onclick="() => GoToPage(currentPage + 1)">بعدی</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    public class ExpenseCategoryDto
+    {
+        public int CategoryId { get; set; }
+        public string CategoryName { get; set; } = "";
+        public string? Description { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    private List<ExpenseCategoryDto> allCategories = new();
+    private List<ExpenseCategoryDto> pagedCategories = new();
+    private int currentPage = 1;
+    private int pageSize = 15;
+    private int totalPages => (int)Math.Ceiling((double)allCategories.Count / pageSize);
+
+    private bool showForm = false;
+    private ExpenseCategoryDto? editingCategory = null;
+    private ExpenseCategoryDto formModel = new();
+
+    protected override async Task OnInitializedAsync() => await LoadCategories();
+
+    private async Task LoadCategories()
+    {
+        try
+        {
+            allCategories = await Http.GetFromJsonAsync<List<ExpenseCategoryDto>>("api/ExpenseCategories") ?? new();
+            UpdatePagedList();
+        }
+        catch { allCategories = new(); }
+    }
+
+    private void UpdatePagedList()
+    {
+        pagedCategories = allCategories.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        UpdatePagedList();
+    }
+
+    private void ShowAddForm()
+    {
+        editingCategory = null;
+        formModel = new();
+        showForm = true;
+    }
+
+    private void EditCategory(ExpenseCategoryDto c)
+    {
+        editingCategory = c;
+        formModel = new()
+        {
+            CategoryId = c.CategoryId,
+            CategoryName = c.CategoryName,
+            Description = c.Description,
+            IsActive = c.IsActive
+        };
+        showForm = true;
+    }
+
+    private async Task SaveCategory()
+    {
+        if (string.IsNullOrWhiteSpace(formModel.CategoryName))
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "نام دسته را وارد کنید");
+            return;
+        }
+
+        try
+        {
+            HttpResponseMessage response;
+            if (editingCategory == null)
+                response = await Http.PostAsJsonAsync("api/ExpenseCategories", formModel);
+            else
+                response = await Http.PutAsJsonAsync($"api/ExpenseCategories/{editingCategory.CategoryId}", formModel);
+
+            if (response.IsSuccessStatusCode)
+            {
+                showForm = false;
+                await LoadCategories();
+            }
+            else
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {content}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+        }
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingCategory = null;
+        formModel = new();
+    }
+
+    private async Task DeleteCategory(int id)
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", "آیا از حذف این دسته مطمئن هستید؟");
+        if (!confirmed) return;
+
+        try
+        {
+            var response = await Http.DeleteAsync($"api/ExpenseCategories/{id}");
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ {content}");
+                return;
+            }
+            await LoadCategories();
+        }
+        catch { }
+    }
+}

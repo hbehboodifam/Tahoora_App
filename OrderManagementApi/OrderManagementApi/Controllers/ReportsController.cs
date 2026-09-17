@@ -419,6 +419,104 @@ public class ReportsController : ControllerBase
             return StatusCode(500, $"خطا: {ex.Message}");
         }
     }
+    
+        // ============================================================
+    // ۵. گزارش سود و زیان (P&L)
+    // ============================================================
+    [HttpGet("profit-loss")]
+    public async Task<IActionResult> GetProfitLossReport(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+    {
+        if (!from.HasValue || !to.HasValue)
+            return BadRequest("بازه‌ی تاریخ الزامی است.");
+
+        var fromDate = from.Value.Date;
+        var toEnd = to.Value.Date.AddDays(1).AddSeconds(-1);
+
+        // ===== فروش و COGS بر اساس تاریخ تحویل =====
+        var orderItems = await _context.OrderItems
+            .Include(oi => oi.Order)
+            .Include(oi => oi.Product)
+            .Where(oi => oi.Order.DeliveryDate >= fromDate && oi.Order.DeliveryDate <= toEnd)
+            .ToListAsync();
+
+        var totalSales = orderItems.Sum(i => i.Quantity * i.UnitPrice);
+        var cogs = orderItems.Sum(i => i.Quantity * (i.Product != null ? i.Product.CostPrice : 0m));
+        var grossProfit = totalSales - cogs;
+
+        // ===== هزینه‌های دوره =====
+        var expenses = await _context.Expenses
+            .Include(e => e.Category)
+            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toEnd)
+            .ToListAsync();
+
+        var totalExpenses = expenses.Sum(e => e.Amount);
+        var netProfit = grossProfit - totalExpenses;
+
+        // ===== درصدها =====
+        var grossMarginPercent = totalSales > 0 ? Math.Round((double)(grossProfit / totalSales * 100), 1) : 0;
+        var netMarginPercent   = totalSales > 0 ? Math.Round((double)(netProfit  / totalSales * 100), 1) : 0;
+
+        // ===== تفکیک هزینه‌ها بر اساس دسته =====
+        var expenseBreakdown = expenses
+            .GroupBy(e => new
+            {
+                e.CategoryId,
+                CategoryName = e.Category != null ? e.Category.CategoryName : "نامشخص"
+            })
+            .Select(g => new
+            {
+                categoryName = g.Key.CategoryName,
+                amount = g.Sum(e => e.Amount),
+                percentage = totalExpenses > 0
+                    ? Math.Round((double)(g.Sum(e => e.Amount) / totalExpenses * 100), 1)
+                    : 0
+            })
+            .OrderByDescending(x => x.amount)
+            .ToList();
+
+        // ===== تفکیک سود بر اساس محصول =====
+        var productBreakdown = orderItems
+            .GroupBy(i => new
+            {
+                i.ProductId,
+                ProductName = i.Product != null ? i.Product.ProductName : "نامشخص"
+            })
+            .Select(g =>
+            {
+                var sales = g.Sum(i => i.Quantity * i.UnitPrice);
+                var cost  = g.Sum(i => i.Quantity * (i.Product != null ? i.Product.CostPrice : 0m));
+                var profit = sales - cost;
+                return new
+                {
+                    productName = g.Key.ProductName,
+                    quantity = g.Sum(i => i.Quantity),
+                    sales,
+                    cogs = cost,
+                    profit,
+                    marginPercent = sales > 0
+                        ? Math.Round((double)(profit / sales * 100), 1)
+                        : 0
+                };
+            })
+            .OrderByDescending(x => x.profit)
+            .ToList();
+
+        return Ok(new
+        {
+            totalSales,
+            cogs,
+            grossProfit,
+            totalExpenses,
+            netProfit,
+            grossMarginPercent,
+            netMarginPercent,
+            expenseBreakdown,
+            productBreakdown,
+            hasData = orderItems.Any() || expenses.Any()
+        });
+    }
 
     // ============================================================
     // متد کمکی: محاسبه‌ی صدک

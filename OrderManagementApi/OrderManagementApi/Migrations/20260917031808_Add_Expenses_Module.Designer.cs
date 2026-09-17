@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OrderManagementApi;
 
@@ -11,9 +12,11 @@ using OrderManagementApi;
 namespace OrderManagementApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917031808_Add_Expenses_Module")]
+    partial class Add_Expenses_Module
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -205,23 +208,8 @@ namespace OrderManagementApi.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ProductId"));
 
-                    b.Property<decimal>("CostPrice")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("Description")
                         .HasColumnType("longtext");
-
-                    b.Property<decimal>("LaborCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("MaterialCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("OverheadPercent")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<decimal>("PackagingCost")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("ProductName")
                         .IsRequired()
@@ -234,10 +222,7 @@ namespace OrderManagementApi.Migrations
                         .HasColumnType("varchar(20)");
 
                     b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("WastePercent")
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("decimal(65,30)");
 
                     b.HasKey("ProductId");
 

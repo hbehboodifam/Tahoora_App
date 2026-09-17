@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@inject NavigationManager NavManager
 
 <div class="page">
     <!-- ===== هدر موبایل (همبرگر) ===== -->
@@ -15,33 +16,83 @@
 
     <!-- ===== منوی کناری ===== -->
     <div class="sidebar @(isSidebarOpen ? "open" : "")">
-        <div class="text-center mb-4">
-            <h4 class="text-white">📊 مدیریت سفارشات</h4>
+        <div class="brand-header">
+            <h4 class="text-white mb-0">📊 مدیریت سفارشات</h4>
         </div>
+
+        <!-- ===== داشبورد (تک‌آیتم) ===== -->
         <NavLink class="nav-link text-white" href="/" Match="NavLinkMatch.All" @onclick="CloseSidebar">
             <span>🏠 داشبورد</span>
         </NavLink>
-        <NavLink class="nav-link text-white" href="/products" @onclick="CloseSidebar">
-            <span>📦 محصولات</span>
-        </NavLink>
-        <NavLink class="nav-link text-white" href="/customers" @onclick="CloseSidebar">
-            <span>👥 مشتریان</span>
-        </NavLink>
-        <NavLink class="nav-link text-white" href="/orders/create" Match="NavLinkMatch.All" @onclick="CloseSidebar">
-            <span>➕ ثبت سفارش</span>
-        </NavLink>
-        <NavLink class="nav-link text-white" href="/orders" Match="NavLinkMatch.All" @onclick="CloseSidebar">
-            <span>📋 سفارشات</span>
-        </NavLink>
-        <NavLink class="nav-link text-white" href="/reports/production" @onclick="CloseSidebar">
-            <span>🏭 گزارش تولید</span>
-        </NavLink>
-        <NavLink class="nav-link text-white" href="/reports/product-sales" @onclick="CloseSidebar">
-            <span>📦 گزارش فروش محصولات</span>
-        </NavLink>
-        <NavLink class="nav-link text-white" href="/reports/customer-performance" @onclick="CloseSidebar">
-            <span>👥 گزارش عملکرد مشتریان</span>
-        </NavLink>
+
+        <!-- ===== گروه: عملیات اصلی ===== -->
+        <div class="nav-group">
+            <button class="nav-group-toggle" @onclick='() => ToggleGroup("operations")'>
+                <span>📋 عملیات اصلی</span>
+                <span class="arrow @(openGroups["operations"] ? "open" : "")">▾</span>
+            </button>
+            @if (openGroups["operations"])
+            {
+                <div class="nav-group-items">
+                    <NavLink class="nav-link text-white" href="/products" @onclick="CloseSidebar">
+                        <span>📦 محصولات</span>
+                    </NavLink>
+                    <NavLink class="nav-link text-white" href="/customers" @onclick="CloseSidebar">
+                        <span>👥 مشتریان</span>
+                    </NavLink>
+                    <NavLink class="nav-link text-white" href="/orders/create" Match="NavLinkMatch.All" @onclick="CloseSidebar">
+                        <span>➕ ثبت سفارش</span>
+                    </NavLink>
+                    <NavLink class="nav-link text-white" href="/orders" Match="NavLinkMatch.All" @onclick="CloseSidebar">
+                        <span>📋 سفارشات</span>
+                    </NavLink>
+                </div>
+            }
+        </div>
+
+        <!-- ===== گروه: گزارش‌ها ===== -->
+        <div class="nav-group">
+            <button class="nav-group-toggle" @onclick='() => ToggleGroup("reports")'>
+                <span>📊 گزارش‌ها</span>
+                <span class="arrow @(openGroups["reports"] ? "open" : "")">▾</span>
+            </button>
+            @if (openGroups["reports"])
+            {
+                <div class="nav-group-items">
+                    <NavLink class="nav-link text-white" href="/reports/production" @onclick="CloseSidebar">
+                        <span>🏭 گزارش تولید</span>
+                    </NavLink>
+                    <NavLink class="nav-link text-white" href="/reports/product-sales" @onclick="CloseSidebar">
+                        <span>📈 گزارش فروش محصولات</span>
+                    </NavLink>
+                    <NavLink class="nav-link text-white" href="/reports/customer-performance" @onclick="CloseSidebar">
+                        <span>👥 گزارش عملکرد مشتریان</span>
+                    </NavLink>
+                    <NavLink class="nav-link text-white" href="/reports/profit-loss" @onclick="CloseSidebar">
+                        <span>💹 گزارش سود و زیان</span>
+                    </NavLink>
+                </div>
+            }
+        </div>
+
+        <!-- ===== گروه: حسابداری ===== -->
+        <div class="nav-group">
+            <button class="nav-group-toggle" @onclick='() => ToggleGroup("accounting")'>
+                <span>💰 حسابداری</span>
+                <span class="arrow @(openGroups["accounting"] ? "open" : "")">▾</span>
+            </button>
+            @if (openGroups["accounting"])
+            {
+                <div class="nav-group-items">
+                    <NavLink class="nav-link text-white" href="/expenses" @onclick="CloseSidebar">
+                        <span>💸 هزینه‌ها</span>
+                    </NavLink>
+                    <NavLink class="nav-link text-white" href="/expense-categories" @onclick="CloseSidebar">
+                        <span>🏷️ دسته‌بندی هزینه‌ها</span>
+                    </NavLink>
+                </div>
+            }
+        </div>
     </div>
 
     <!-- ===== محتوای اصلی ===== -->
@@ -62,35 +113,115 @@
     }
 
     .sidebar {
-        width: 220px;
+        width: 240px;
         flex-shrink: 0;
         background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
         min-height: 100vh;
-        padding: 20px;
+        padding: 16px 12px;
         transition: all 0.3s ease;
         position: sticky;
         top: 0;
         height: 100vh;
         overflow-y: auto;
     }
+
+    .sidebar .brand-header {
+        text-align: center;
+        padding: 8px 0 20px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        margin-bottom: 15px;
+    }
+    .sidebar .brand-header h4 {
+        font-size: 1.05rem;
+    }
+
     .sidebar .nav-link {
-        padding: 12px 20px;
-        border-radius: 10px;
-        margin-bottom: 5px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-bottom: 3px;
         transition: all 0.2s;
         display: block;
         color: rgba(255,255,255,0.7) !important;
         text-decoration: none;
+        font-size: 0.92rem;
     }
     .sidebar .nav-link:hover {
         background: rgba(255,255,255,0.1);
         color: white !important;
+        transform: translateX(-3px);
     }
     .sidebar .nav-link.active {
         background: #6C63FF;
         color: white !important;
         font-weight: bold;
         box-shadow: 0 4px 12px rgba(108, 99, 255, 0.4);
+    }
+
+    /* ===== گروه‌های آکاردئونی ===== */
+    .nav-group {
+        margin-bottom: 4px;
+    }
+    .nav-group-toggle {
+        width: 100%;
+        background: transparent;
+        border: none;
+        color: rgba(255,255,255,0.75);
+        padding: 10px 14px;
+        border-radius: 8px;
+        text-align: right;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.92rem;
+        font-weight: 600;
+        transition: all 0.2s;
+        font-family: inherit;
+    }
+    .nav-group-toggle:hover {
+        background: rgba(255,255,255,0.08);
+        color: white;
+    }
+    .nav-group-toggle .arrow {
+        font-size: 0.85rem;
+        transition: transform 0.25s ease;
+        display: inline-block;
+        opacity: 0.7;
+    }
+    .nav-group-toggle .arrow.open {
+        transform: rotate(180deg);
+    }
+
+    .nav-group-items {
+        margin: 4px 8px 8px 0;
+        padding-right: 10px;
+        border-right: 2px solid rgba(108, 99, 255, 0.3);
+        animation: slideDown 0.2s ease;
+    }
+    .nav-group-items .nav-link {
+        padding: 8px 12px;
+        font-size: 0.87rem;
+        margin-bottom: 2px;
+    }
+
+    @@keyframes slideDown {
+        from { opacity: 0; transform: translateY(-5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== Scrollbar زیبا ===== */
+    .sidebar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .sidebar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.15);
+        border-radius: 3px;
+    }
+    .sidebar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255,255,255,0.25);
     }
 
     .main {
@@ -155,7 +286,10 @@
         .sidebar.open { transform: translateX(0); }
         .navbar-mobile { display: flex; }
         .main { padding: 10px; padding-top: 0; }
-        .sidebar .nav-link { text-align: center; font-size: 1.1rem; padding: 15px; }
+        .sidebar .nav-link { text-align: center; font-size: 1rem; padding: 12px; }
+        .nav-group-toggle { justify-content: center; gap: 10px; font-size: 1rem; padding: 12px; }
+        .nav-group-items { border-right: none; padding-right: 0; margin-right: 0; }
+        .nav-group-items .nav-link { text-align: center; }
     }
 
     @@media (min-width: 769px) {
@@ -166,6 +300,41 @@
 
 @code {
     private bool isSidebarOpen = false;
+
+    // ===== وضعیت باز/بسته‌ی گروه‌ها =====
+    private readonly Dictionary<string, bool> openGroups = new()
+    {
+        ["operations"] = false,
+        ["reports"]    = false,
+        ["accounting"] = false
+    };
+
+    protected override void OnInitialized()
+    {
+        // گروه مربوط به صفحه‌ی فعلی رو خودکار باز کن
+        var uri = NavManager.ToBaseRelativePath(NavManager.Uri).ToLower();
+
+        if (uri.StartsWith("products") ||
+            uri.StartsWith("customers") ||
+            uri.StartsWith("orders"))
+        {
+            openGroups["operations"] = true;
+        }
+        else if (uri.StartsWith("reports"))
+        {
+            openGroups["reports"] = true;
+        }
+        else if (uri.StartsWith("expense"))
+        {
+            openGroups["accounting"] = true;
+        }
+    }
+
     private void ToggleSidebar() => isSidebarOpen = !isSidebarOpen;
     private void CloseSidebar() => isSidebarOpen = false;
+
+    private void ToggleGroup(string key)
+    {
+        openGroups[key] = !openGroups[key];
+    }
 }
