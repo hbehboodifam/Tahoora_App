@@ -11,11 +11,13 @@ public class ReportsController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly SmsService _smsService;
+    private readonly RfmCalculator _rfmCalculator;
 
-    public ReportsController(AppDbContext context, SmsService smsService)
+    public ReportsController(AppDbContext context, SmsService smsService, RfmCalculator rfmCalculator)
     {
         _context = context;
         _smsService = smsService;
+        _rfmCalculator = rfmCalculator;
     }
 
     // ============================================================
@@ -245,7 +247,7 @@ public class ReportsController : ControllerBase
     // ============================================================
     // ۳. گزارش عملکرد مشتریان (RFM)
     // ============================================================
-    [HttpGet("customer-performance")]
+        [HttpGet("customer-performance")]
     public async Task<IActionResult> GetCustomerPerformanceReport(
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
@@ -285,9 +287,10 @@ public class ReportsController : ControllerBase
             });
         }
 
+        // تبدیل به RfmRawData
         var rawData = orders
             .GroupBy(o => new { o.CustomerId, Name = o.Customer != null ? o.Customer.FullName : "نامشخص" })
-            .Select(g => new
+            .Select(g => new RfmRawData
             {
                 CustomerId = g.Key.CustomerId,
                 CustomerName = g.Key.Name,
@@ -299,57 +302,7 @@ public class ReportsController : ControllerBase
             })
             .ToList();
 
-        var recencyValues = rawData.Select(r => (DateTime.Now - r.LastOrderDate).TotalDays).OrderBy(v => v).ToList();
-        var frequencyValues = rawData.Select(r => (double)r.OrderCount).OrderBy(v => v).ToList();
-        var monetaryValues = rawData.Select(r => (double)r.TotalPurchase).OrderBy(v => v).ToList();
-
-        double recencyP33 = GetPercentile(recencyValues, 33);
-        double recencyP66 = GetPercentile(recencyValues, 66);
-        double freqP33 = GetPercentile(frequencyValues, 33);
-        double freqP66 = GetPercentile(frequencyValues, 66);
-        double monetaryP33 = GetPercentile(monetaryValues, 33);
-        double monetaryP66 = GetPercentile(monetaryValues, 66);
-
-        var customersList = rawData.Select(r =>
-        {
-            var recencyDays = (DateTime.Now - r.LastOrderDate).TotalDays;
-
-            int rScore = recencyDays <= recencyP33 ? 3 : recencyDays <= recencyP66 ? 2 : 1;
-            int fScore = r.OrderCount >= freqP66 ? 3 : r.OrderCount >= freqP33 ? 2 : 1;
-            int mScore = (double)r.TotalPurchase >= monetaryP66 ? 3 : (double)r.TotalPurchase >= monetaryP33 ? 2 : 1;
-            int totalScore = rScore + fScore + mScore;
-
-            string cat = totalScore >= 8 ? "🏆 VIP"
-                       : totalScore >= 6 ? "🟢 وفادار"
-                       : totalScore >= 4 ? "🟡 معمولی"
-                       : "🔴 در معرض ریزش";
-
-            string catKey = totalScore >= 8 ? "VIP"
-                          : totalScore >= 6 ? "Loyal"
-                          : totalScore >= 4 ? "Normal"
-                          : "AtRisk";
-
-            return new
-            {
-                r.CustomerId,
-                r.CustomerName,
-                r.OrderCount,
-                r.TotalPurchase,
-                r.AverageOrderValue,
-                r.DistinctProducts,
-                r.LastOrderDate,
-                DaysSinceLastOrder = (int)recencyDays,
-                Debt = debtByCustomer.ContainsKey(r.CustomerId) ? debtByCustomer[r.CustomerId] : 0m,
-                RScore = rScore,
-                FScore = fScore,
-                MScore = mScore,
-                TotalScore = totalScore,
-                Category = cat,
-                CategoryKey = catKey
-            };
-        })
-        .OrderByDescending(c => c.TotalPurchase)
-        .ToList();
+        var customersList = _rfmCalculator.Calculate(rawData, debtByCustomer);
 
         if (!string.IsNullOrEmpty(category) && category != "All")
         {
@@ -518,22 +471,4 @@ public class ReportsController : ControllerBase
         });
     }
 
-    // ============================================================
-    // متد کمکی: محاسبه‌ی صدک
-    // ============================================================
-    private static double GetPercentile(List<double> sortedValues, double percentile)
-    {
-        if (sortedValues.Count == 0) return 0;
-        if (sortedValues.Count == 1) return sortedValues[0];
-
-        double rank = (percentile / 100.0) * (sortedValues.Count - 1);
-        int lowerIndex = (int)Math.Floor(rank);
-        int upperIndex = (int)Math.Ceiling(rank);
-
-        if (lowerIndex == upperIndex)
-            return sortedValues[lowerIndex];
-
-        double weight = rank - lowerIndex;
-        return sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight;
-    }
 }

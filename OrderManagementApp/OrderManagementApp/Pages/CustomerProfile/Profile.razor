@@ -1,0 +1,482 @@
+﻿@page "/customers/{Id:int}/profile"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+@inject NavigationManager Nav
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+
+    @if (isLoading)
+    {
+        <div class="text-center text-muted mt-5">
+            <p>⏳ در حال بارگذاری...</p>
+        </div>
+    }
+    else if (profile == null)
+    {
+        <div class="alert alert-danger mt-3">مشتری یافت نشد.</div>
+        <button class="btn btn-secondary btn-sm" @onclick="GoBack">🔙 بازگشت به لیست</button>
+    }
+    else
+    {
+        <!-- ===== هدر ===== -->
+        <div class="card shadow-sm mb-3 border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                        <h3 class="fs-5 fs-md-4 mb-2">👤 @profile.Customer.FullName</h3>
+                        <div class="text-muted small">
+                            @if (!string.IsNullOrEmpty(profile.Customer.Phone))
+                            {
+                                <span class="me-3">📞 @profile.Customer.Phone</span>
+                            }
+                            @if (!string.IsNullOrEmpty(profile.Customer.Email))
+                            {
+                                <span class="me-3">✉️ @profile.Customer.Email</span>
+                            }
+                            @if (!string.IsNullOrEmpty(profile.Customer.Address))
+                            {
+                                <span>📍 @profile.Customer.Address</span>
+                            }
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="GoBack">🔙 بازگشت</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== کارت‌های آماری ===== -->
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">📦</h5>
+                        <h6 class="text-muted small mb-0">تعداد سفارشات</h6>
+                        <h4 class="mb-0">@profile.Stats.TotalOrders</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #2ecc71 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💰</h5>
+                        <h6 class="text-muted small mb-0">مجموع خرید</h6>
+                        <h4 class="mb-0">@profile.Stats.TotalPurchases.ToString("N0")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid @(profile.Stats.Debt > 0 ? "#e74c3c" : "#95a5a6") !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💳</h5>
+                        <h6 class="text-muted small mb-0">بدهی</h6>
+                        <h4 class="mb-0 @(profile.Stats.Debt > 0 ? "text-danger" : "")">
+                            @profile.Stats.Debt.ToString("N0")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #9b59b6 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">⏳</h5>
+                        <h6 class="text-muted small mb-0">آخرین سفارش</h6>
+                        <h4 class="mb-0">@profile.Stats.DaysSinceLastOrder روز پیش</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== RFM ===== -->
+        @if (profile.Rfm != null)
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-body p-2 p-md-3">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-4">
+                            <span class="small text-muted">وضعیت RFM:</span>
+                            <span class="badge bg-primary ms-2 fs-6">@profile.Rfm.Category</span>
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <div class="d-flex flex-wrap gap-3 small">
+                                <div>
+                                    <strong>R</strong> (تازگی):
+                                    <span class="badge @GetScoreBadgeClass(profile.Rfm.RScore)">@profile.Rfm.RScore/3</span>
+                                </div>
+                                <div>
+                                    <strong>F</strong> (تعداد):
+                                    <span class="badge @GetScoreBadgeClass(profile.Rfm.FScore)">@profile.Rfm.FScore/3</span>
+                                </div>
+                                <div>
+                                    <strong>M</strong> (مبلغ):
+                                    <span class="badge @GetScoreBadgeClass(profile.Rfm.MScore)">@profile.Rfm.MScore/3</span>
+                                </div>
+                                <div>
+                                    <strong>مجموع:</strong>
+                                    <span class="badge bg-dark">@profile.Rfm.TotalScore/9</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ===== تب‌ها ===== -->
+        <ul class="nav nav-tabs mb-0">
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "orders" ? "active" : "")"
+                        @onclick='() => activeTab = "orders"'>
+                    📋 سفارشات (@profile.Orders.Count)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "sms" ? "active" : "")"
+                        @onclick='() => activeTab = "sms"'>
+                    💬 پیامک‌ها (@profile.SmsLogs.Count)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "notes" ? "active" : "")"
+                        @onclick='() => activeTab = "notes"'>
+                    📝 یادداشت‌ها (@profile.Notes.Count)
+                </button>
+            </li>
+        </ul>
+
+        <div class="card shadow-sm border-top-0" style="border-top-left-radius: 0; border-top-right-radius: 0;">
+            <div class="card-body p-2 p-md-3">
+
+                <!-- ===== تب سفارشات ===== -->
+                @if (activeTab == "orders")
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th class="small">#</th>
+                                    <th class="small">تاریخ ثبت</th>
+                                    <th class="small">تاریخ تحویل</th>
+                                    <th class="small">تعداد اقلام</th>
+                                    <th class="small">مبلغ (تومان)</th>
+                                    <th class="small">وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!profile.Orders.Any())
+                                {
+                                    <tr><td colspan="6" class="text-center text-muted small py-3">هیچ سفارشی ثبت نشده</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var o in profile.Orders)
+                                    {
+                                        <tr>
+                                            <td class="small">#@o.OrderId</td>
+                                            <td class="small">@o.OrderDate.ToPersianDate()</td>
+                                            <td class="small">@o.DeliveryDate.ToPersianDate()</td>
+                                            <td class="small">@o.ItemCount</td>
+                                            <td class="small fw-bold">@o.TotalAmount.ToString("N0")</td>
+                                            <td>
+                                                <span class="badge @(o.IsPaid ? "bg-success" : "bg-danger") small">
+                                                    @(o.IsPaid ? "پرداخت شده" : "پرداخت نشده")
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <!-- ===== تب پیامک‌ها ===== -->
+                @if (activeTab == "sms")
+                {
+                    @if (!profile.SmsLogs.Any())
+                    {
+                        <div class="text-center text-muted small py-3">هیچ پیامکی ارسال نشده</div>
+                    }
+                    else
+                    {
+                        @foreach (var sms in profile.SmsLogs)
+                        {
+                            <div class="card mb-2 border-0 bg-light">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="badge @(sms.SmsType == "Auto" ? "bg-info" : sms.SmsType == "Reminder" ? "bg-warning text-dark" : "bg-secondary") small">
+                                            @sms.SmsType
+                                        </span>
+                                        <small class="text-muted">@sms.SentDate.ToPersianDate()</small>
+                                    </div>
+                                    <div class="small" style="white-space: pre-wrap;">@sms.MessageText</div>
+                                </div>
+                            </div>
+                        }
+                    }
+                }
+
+                <!-- ===== تب یادداشت‌ها ===== -->
+                @if (activeTab == "notes")
+                {
+                    <!-- فرم افزودن -->
+                    <div class="card mb-3 border-0 bg-light">
+                        <div class="card-body p-2">
+                            <h6 class="fs-6 mb-2">➕ افزودن یادداشت جدید</h6>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label small">نوع</label>
+                                    <select class="form-select form-select-sm" @bind="noteForm.NoteType">
+                                        <option value="تماس">📞 تماس</option>
+                                        <option value="جلسه">🤝 جلسه</option>
+                                        <option value="پیگیری">🔔 پیگیری</option>
+                                        <option value="متفرقه">📌 متفرقه</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 col-md-4">
+                                    <label class="form-label small">یادآوری بعدی (اختیاری)</label>
+                                    <InputPersianDatePicker
+                                        Value="@noteFollowUpDateString"
+                                        ValueChanged="@((string v) => noteFollowUpDateString = v)"
+                                        Placeholder="انتخاب تاریخ"
+                                        CssClass="form-control form-control-sm" />
+                                </div>
+                                <div class="col-6 col-md-4">
+                                    <label class="form-label small">ثبت‌کننده (اختیاری)</label>
+                                    <input class="form-control form-control-sm" @bind="noteForm.CreatedBy" placeholder="نام شما" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small">متن یادداشت</label>
+                                    <textarea class="form-control form-control-sm" rows="3" @bind="noteForm.NoteText"
+                                              placeholder="مثلاً: تماس گرفتم، قرار شد سفارش بعدی رو هفته‌ی آینده ثبت کنه"></textarea>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <button class="btn btn-success btn-sm" @onclick="SaveNote">💾 ذخیره یادداشت</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- لیست یادداشت‌ها -->
+                    @if (!profile.Notes.Any())
+                    {
+                        <div class="text-center text-muted small py-3">هنوز یادداشتی ثبت نشده</div>
+                    }
+                    else
+                    {
+                        @foreach (var note in profile.Notes)
+                        {
+                            <div class="card mb-2 border-0 bg-light">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <div>
+                                            <span class="badge bg-secondary small">@note.NoteType</span>
+                                            @if (note.FollowUpDate.HasValue)
+                                            {
+                                                <span class="badge bg-warning text-dark small">
+                                                    🔔 @note.FollowUpDate.Value.ToPersianDate()
+                                                </span>
+                                            }
+                                            @if (note.IsResolved)
+                                            {
+                                                <span class="badge bg-success small">✅ حل شد</span>
+                                            }
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <small class="text-muted">@note.CreatedDate.ToPersianDate()</small>
+                                            <button class="btn btn-sm btn-outline-danger py-0 px-1" @onclick="() => DeleteNote(note.NoteId)">🗑️</button>
+                                        </div>
+                                    </div>
+                                    <div class="small" style="white-space: pre-wrap;">@note.NoteText</div>
+                                    @if (!string.IsNullOrEmpty(note.CreatedBy))
+                                    {
+                                        <div class="text-muted small mt-1">— ثبت: @note.CreatedBy</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private CustomerProfileDto? profile;
+    private bool isLoading = true;
+    private string activeTab = "orders";
+
+    private NoteDto noteForm = new();
+    private string? noteFollowUpDateString;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            profile = await Http.GetFromJsonAsync<CustomerProfileDto>($"api/customers/{Id}/profile");
+        }
+        catch
+        {
+            profile = null;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveNote()
+    {
+        if (string.IsNullOrWhiteSpace(noteForm.NoteText))
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "متن یادداشت اجباری است.");
+            return;
+        }
+
+        noteForm.FollowUpDate = ConvertPersianToGregorian(noteFollowUpDateString);
+
+        try
+        {
+            var res = await Http.PostAsJsonAsync($"api/customers/{Id}/notes", noteForm);
+            if (res.IsSuccessStatusCode)
+            {
+                noteForm = new();
+                noteFollowUpDateString = null;
+                await LoadProfile();
+                activeTab = "notes";
+            }
+            else
+            {
+                var msg = await res.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ {msg}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+        }
+    }
+
+    private async Task DeleteNote(int noteId)
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", "از حذف این یادداشت مطمئن هستید؟");
+        if (!confirmed) return;
+
+        try
+        {
+            await Http.DeleteAsync($"api/customers/{Id}/notes/{noteId}");
+            await LoadProfile();
+            activeTab = "notes";
+        }
+        catch { }
+    }
+
+    private void GoBack() => Nav.NavigateTo("/customers");
+
+    private string GetScoreBadgeClass(int score) => score switch
+    {
+        3 => "bg-success",
+        2 => "bg-warning text-dark",
+        _ => "bg-danger"
+    };
+
+    private DateTime? ConvertPersianToGregorian(string? persianDate)
+    {
+        if (string.IsNullOrEmpty(persianDate)) return null;
+        try
+        {
+            var normalized = persianDate
+                .Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
+                .Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
+            var parts = normalized.Split('/');
+            if (parts.Length != 3) return null;
+            if (!int.TryParse(parts[0], out int y)) return null;
+            if (!int.TryParse(parts[1], out int m)) return null;
+            if (!int.TryParse(parts[2], out int d)) return null;
+            var pc = new System.Globalization.PersianCalendar();
+            return pc.ToDateTime(y, m, d, 0, 0, 0, 0);
+        }
+        catch { return null; }
+    }
+
+    // ===== DTO ها =====
+    public class CustomerProfileDto
+    {
+        public CustomerBasicDto Customer { get; set; } = new();
+        public StatsDto Stats { get; set; } = new();
+        public RfmDto? Rfm { get; set; }
+        public List<OrderDto> Orders { get; set; } = new();
+        public List<SmsDto> SmsLogs { get; set; } = new();
+        public List<NoteDto> Notes { get; set; } = new();
+    }
+
+    public class CustomerBasicDto
+    {
+        public int CustomerId { get; set; }
+        public string FullName { get; set; } = "";
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string? Address { get; set; }
+    }
+
+    public class StatsDto
+    {
+        public int TotalOrders { get; set; }
+        public decimal TotalPurchases { get; set; }
+        public decimal Debt { get; set; }
+        public int DaysSinceLastOrder { get; set; }
+    }
+
+    public class RfmDto
+    {
+        public int OrderCount { get; set; }
+        public decimal TotalPurchase { get; set; }
+        public int RScore { get; set; }
+        public int FScore { get; set; }
+        public int MScore { get; set; }
+        public int TotalScore { get; set; }
+        public string Category { get; set; } = "";
+        public string CategoryKey { get; set; } = "";
+    }
+
+    public class OrderDto
+    {
+        public int OrderId { get; set; }
+        public DateTime OrderDate { get; set; }
+        public DateTime DeliveryDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public bool IsPaid { get; set; }
+        public DateTime? PaymentDate { get; set; }
+        public string? Notes { get; set; }
+        public int ItemCount { get; set; }
+    }
+
+    public class SmsDto
+    {
+        public int LogId { get; set; }
+        public DateTime SentDate { get; set; }
+        public string? MessageText { get; set; }
+        public string? SmsType { get; set; }
+    }
+
+    public class NoteDto
+    {
+        public int NoteId { get; set; }
+        public string NoteText { get; set; } = "";
+        public string NoteType { get; set; } = "متفرقه";
+        public DateTime CreatedDate { get; set; }
+        public bool IsResolved { get; set; }
+        public DateTime? FollowUpDate { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+}

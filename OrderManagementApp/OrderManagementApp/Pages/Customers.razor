@@ -1,6 +1,7 @@
 ﻿@page "/customers"
 @inject HttpClient Http
 @inject IJSRuntime JsRuntime
+@inject NavigationManager Nav
 
 <div class="container-fluid px-2 px-md-3" dir="rtl">
     <h2 class="fs-5 fs-md-4 mb-3">👥 مدیریت مشتریان</h2>
@@ -49,25 +50,26 @@
                 </tr>
             </thead>
             <tbody>
-                @if (pagedCustomers == null || !pagedCustomers.Any())
+            @if (pagedCustomers == null || !pagedCustomers.Any())
+            {
+                <tr><td colspan="4" class="text-center text-muted small py-2">هیچ مشتریی یافت نشد</td></tr>
+            }
+            else
+            {
+                @foreach (var c in pagedCustomers)
                 {
-                    <tr><td colspan="4" class="text-center text-muted small py-2">هیچ مشتریی یافت نشد</td></tr>
+                    <tr>
+                        <td class="small">@c.FullName</td>
+                        <td class="small">@c.Phone</td>
+                        <td class="small">@c.Email</td>
+                        <td>
+                            <button class="btn btn-sm btn-info" title="پروفایل" @onclick="() => GoToProfile(c.CustomerId)">👤</button>
+                            <button class="btn btn-sm btn-warning" @onclick="() => EditCustomer(c)">✏️</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteCustomer(c.CustomerId)">🗑️</button>
+                        </td>
+                    </tr>
                 }
-                else
-                {
-                    @foreach (var c in pagedCustomers)
-                    {
-                        <tr>
-                            <td class="small">@c.FullName</td>
-                            <td class="small">@c.Phone</td>
-                            <td class="small">@c.Email</td>
-                            <td>
-                                <button class="btn btn-sm btn-warning" @onclick="() => EditCustomer(c)">✏️</button>
-                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteCustomer(c.CustomerId)">🗑️</button>
-                            </td>
-                        </tr>
-                    }
-                }
+            }
             </tbody>
         </table>
     </div>
@@ -123,6 +125,11 @@
     private void UpdatePagedList()
     {
         pagedCustomers = allCustomers.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+    
+    private void GoToProfile(int customerId)
+    {
+        Nav.NavigateTo($"/customers/{customerId}/profile");
     }
 
     private void GoToPage(int page)

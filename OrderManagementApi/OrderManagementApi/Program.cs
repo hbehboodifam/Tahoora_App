@@ -29,6 +29,7 @@ else
 
 // ===== سرویس‌ها =====
 builder.Services.AddScoped<SmsService>();
+builder.Services.AddScoped<OrderManagementApi.Services.RfmCalculator>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

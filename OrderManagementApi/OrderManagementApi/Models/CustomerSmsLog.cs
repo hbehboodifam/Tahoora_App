@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace OrderManagementApi.Models
 {
@@ -19,6 +20,7 @@ namespace OrderManagementApi.Models
         public string? SmsType { get; set; } // "Auto" یا "Manual"
 
         [ForeignKey("CustomerId")]
-        public virtual Customer? Customer { get; set; } // قابل‌تهی (Nullable)
+        [JsonIgnore]   // ← این خط جدید
+        public virtual Customer? Customer { get; set; }
     }
 }

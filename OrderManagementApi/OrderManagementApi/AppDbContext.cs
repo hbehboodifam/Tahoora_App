@@ -17,6 +17,7 @@ namespace OrderManagementApi
         public DbSet<CustomerSmsLog> CustomerSmsLogs { get; set; }
         public DbSet<Expense> Expenses { get; set; }
         public DbSet<ExpenseCategory> ExpenseCategories { get; set; }
+        public DbSet<CustomerNote> CustomerNotes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -45,6 +46,17 @@ namespace OrderManagementApi
                 .WithMany(c => c.Expenses)
                 .HasForeignKey(e => e.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
+            
+            // ===== CustomerNote =====
+            modelBuilder.Entity<CustomerNote>()
+                .HasOne(n => n.Customer)
+                .WithMany()
+                .HasForeignKey(n => n.CustomerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CustomerNote>()
+                .Property(n => n.NoteText)
+                .HasColumnType("text");
 
             base.OnModelCreating(modelBuilder);
         }
