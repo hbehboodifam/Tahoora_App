@@ -15,26 +15,25 @@ if (builder.HostEnvironment.IsProduction())
     builder.Configuration.AddJsonFile("appsettings.Production.json", optional: true, reloadOnChange: true);
 }
 
-// ===== خواندن آدرس API از تنظیمات (اختیاری) =====
-var configuredUrl = builder.Configuration["ApiSettings:BaseUrl"];
-
-// ===== اگه تنظیمات آدرس داره، همون رو استفاده کن =====
-// اگه نداره (یا localhost بود)، خودکار از روی URL فعلی بساز
+// ===== آدرس API: نسبی به آدرس فعلی مرورگر =====
+// وقتی از localhost باز می‌شه:  http://localhost:5255/  → API: http://localhost:5202/
+// وقتی از Tailscale باز می‌شه:  https://xxx.ts.net/    → API: https://xxx.ts.net/api/ (از طریق Tailscale Serve)
+//
+// بنابراین کد باید تشخیص بده کجا اجرا می‌شه
 string apiBaseUrl;
 
-if (builder.HostEnvironment.IsProduction() && !string.IsNullOrEmpty(configuredUrl))
+var currentBase = builder.HostEnvironment.BaseAddress; // مثل http://localhost:5255/ یا https://xxx.ts.net/
+var uri = new Uri(currentBase);
+
+if (uri.Host == "localhost" || uri.Host == "127.0.0.1" || IsLocalIp(uri.Host))
 {
-    // Production: از تنظیمات
-    apiBaseUrl = configuredUrl;
+    // ===== حالت Local: API روی پورت جداگانه 5202 =====
+    apiBaseUrl = $"{uri.Scheme}://{uri.Host}:5202/";
 }
 else
 {
-    // Development: از روی hostname فعلی، پورت API رو بساز
-    var currentBase = builder.HostEnvironment.BaseAddress;   // مثل http://localhost:5255/
-    var uri = new Uri(currentBase);
-    var apiHost = uri.Host;                                   // localhost یا 192.168.1.10 یا هرچی
-    var apiScheme = uri.Scheme;                               // http یا https
-    apiBaseUrl = $"{apiScheme}://{apiHost}:5202/";
+    // ===== حالت Tailscale Funnel: API از مسیر /api روی همون دامنه =====
+    apiBaseUrl = $"{uri.Scheme}://{uri.Host}/api/";
 }
 
 // ===== ثبت HttpClient =====
@@ -44,3 +43,20 @@ builder.Services.AddScoped(sp => new HttpClient
 });
 
 await builder.Build().RunAsync();
+
+// ===== تشخیص IP محلی شبکه (192.168.x.x, 10.x.x.x, 172.16-31.x.x) =====
+static bool IsLocalIp(string host)
+{
+    if (!System.Net.IPAddress.TryParse(host, out var ip)) return false;
+    var bytes = ip.GetAddressBytes();
+    if (bytes.Length != 4) return false;
+
+    // 10.0.0.0/8
+    if (bytes[0] == 10) return true;
+    // 172.16.0.0/12
+    if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+    // 192.168.0.0/16
+    if (bytes[0] == 192 && bytes[1] == 168) return true;
+
+    return false;
+}
