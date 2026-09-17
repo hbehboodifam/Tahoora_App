@@ -12,11 +12,13 @@ public class OrdersController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly SmsService _smsService;
+    private readonly InventoryService _inventory;
 
-    public OrdersController(AppDbContext context, SmsService smsService)
+    public OrdersController(AppDbContext context, SmsService smsService, InventoryService inventory)
     {
         _context = context;
         _smsService = smsService;
+        _inventory = inventory;
     }
 
     // ===== دریافت همه سفارشات =====
@@ -126,6 +128,13 @@ public class OrdersController : ControllerBase
         order.TotalAmount = order.OrderItems.Sum(oi => oi.Quantity * oi.UnitPrice);
 
         _context.Orders.Add(order);
+
+        // ===== کاهش موجودی برای هر قلم (می‌تونه منفی بشه) =====
+        foreach (var item in order.OrderItems)
+        {
+            await _inventory.DecreaseStockAllowNegativeAsync(item.ProductId, item.Quantity);
+        }
+
         await _context.SaveChangesAsync();
 
         return Ok(order.OrderId);
@@ -149,6 +158,12 @@ public class OrdersController : ControllerBase
         existing.IsPaid = orderDto.IsPaid;
         existing.Notes = orderDto.Notes;
 
+        // ===== برگرداندن موجودی اقلام قبلی =====
+        foreach (var oldItem in existing.OrderItems)
+        {
+            await _inventory.IncreaseStockAsync(oldItem.ProductId, oldItem.Quantity);
+        }
+
         // حذف آیتم‌های قبلی
         _context.OrderItems.RemoveRange(existing.OrderItems);
 
@@ -163,6 +178,12 @@ public class OrdersController : ControllerBase
 
         existing.TotalAmount = existing.OrderItems.Sum(oi => oi.Quantity * oi.UnitPrice);
 
+        // ===== کسر موجودی برای اقلام جدید =====
+        foreach (var newItem in existing.OrderItems)
+        {
+            await _inventory.DecreaseStockAllowNegativeAsync(newItem.ProductId, newItem.Quantity);
+        }
+
         await _context.SaveChangesAsync();
         return NoContent();
     }
@@ -176,6 +197,12 @@ public class OrdersController : ControllerBase
             .FirstOrDefaultAsync(o => o.OrderId == id);
 
         if (order == null) return NotFound();
+
+        // ===== برگرداندن موجودی اقلام این سفارش =====
+        foreach (var item in order.OrderItems)
+        {
+            await _inventory.IncreaseStockAsync(item.ProductId, item.Quantity);
+        }
 
         _context.OrderItems.RemoveRange(order.OrderItems);
         _context.Orders.Remove(order);

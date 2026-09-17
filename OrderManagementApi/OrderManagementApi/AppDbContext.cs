@@ -19,6 +19,11 @@ namespace OrderManagementApi
         public DbSet<ExpenseCategory> ExpenseCategories { get; set; }
         public DbSet<CustomerNote> CustomerNotes { get; set; }
 
+        // ===== جدید: انبار و تولید =====
+        public DbSet<ProductStock> ProductStocks { get; set; }
+        public DbSet<ProductionLog> ProductionLogs { get; set; }
+        public DbSet<WasteLog> WasteLogs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // ===== Product =====
@@ -46,7 +51,7 @@ namespace OrderManagementApi
                 .WithMany(c => c.Expenses)
                 .HasForeignKey(e => e.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
-            
+
             // ===== CustomerNote =====
             modelBuilder.Entity<CustomerNote>()
                 .HasOne(n => n.Customer)
@@ -57,6 +62,51 @@ namespace OrderManagementApi
             modelBuilder.Entity<CustomerNote>()
                 .Property(n => n.NoteText)
                 .HasColumnType("text");
+
+            // ===== Order: OrderSource =====
+            modelBuilder.Entity<Order>()
+                .Property(o => o.OrderSource)
+                .HasMaxLength(20)
+                .HasDefaultValue("Regular");
+
+            // ===== ProductStock =====
+            modelBuilder.Entity<ProductStock>()
+                .Property(s => s.Quantity)
+                .HasColumnType("decimal(18,3)");
+
+            modelBuilder.Entity<ProductStock>()
+                .HasOne(s => s.Product)
+                .WithOne()
+                .HasForeignKey<ProductStock>(s => s.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ===== ProductionLog =====
+            modelBuilder.Entity<ProductionLog>()
+                .Property(p => p.PlannedQuantity)
+                .HasColumnType("decimal(18,3)");
+            modelBuilder.Entity<ProductionLog>()
+                .Property(p => p.ActualProducedQuantity)
+                .HasColumnType("decimal(18,3)");
+
+            modelBuilder.Entity<ProductionLog>()
+                .HasOne(p => p.Product)
+                .WithMany()
+                .HasForeignKey(p => p.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ===== WasteLog =====
+            modelBuilder.Entity<WasteLog>()
+                .Property(w => w.Quantity)
+                .HasColumnType("decimal(18,3)");
+            modelBuilder.Entity<WasteLog>()
+                .Property(w => w.UnitCost)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<WasteLog>()
+                .HasOne(w => w.Product)
+                .WithMany()
+                .HasForeignKey(w => w.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             base.OnModelCreating(modelBuilder);
         }

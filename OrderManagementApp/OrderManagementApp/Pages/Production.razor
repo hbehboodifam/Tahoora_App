@@ -1,0 +1,506 @@
+﻿@page "/production"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">🏭 برنامه‌ی تولید</h2>
+
+    <!-- ===== Toggle بین نمای تجمعی و تفکیکی ===== -->
+    <div class="btn-group btn-group-sm mb-3" role="group">
+        <input type="radio" class="btn-check" name="viewMode" id="viewAgg"
+               checked="@(viewMode == "aggregate")" @onchange='() => viewMode = "aggregate"' />
+        <label class="btn btn-outline-primary" for="viewAgg">🗂️ نمای تجمعی</label>
+
+        <input type="radio" class="btn-check" name="viewMode" id="viewDetail"
+               checked="@(viewMode == "detail")" @onchange='() => viewMode = "detail"' />
+        <label class="btn btn-outline-primary" for="viewDetail">📅 نمای تفکیکی به تاریخ</label>
+    </div>
+
+    <!-- ===== فیلتر تاریخ ===== -->
+    <PersianDateRangeFilter
+        FromLabel="از تاریخ تحویل"
+        ToLabel="تا تاریخ تحویل"
+        @bind-FromDate="fromDate"
+        @bind-ToDate="toDate"
+        ShowApplyButton="true"
+        ShowExportButton="false"
+        OnApply="LoadPlan" />
+
+    @if (isLoading)
+    {
+        <div class="text-center text-muted mt-5">
+            <p>⏳ در حال بارگذاری...</p>
+        </div>
+    }
+    else if (rows.Count == 0 && byDate.Count == 0)
+    {
+        <div class="alert alert-info mt-3">
+            در بازه‌ی انتخاب‌شده، هیچ سفارشی برای تولید وجود ندارد.
+        </div>
+    }
+    else
+    {
+        <!-- ===== کارت‌های آماری ===== -->
+        <div class="row g-2 mb-3 mt-3">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">📦</h5>
+                        <h6 class="text-muted small mb-0">محصولات سفارش‌دار</h6>
+                        <h4 class="mb-0">@RowsWithOrderCount</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #9b59b6 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">📋</h5>
+                        <h6 class="text-muted small mb-0">جمع سفارش</h6>
+                        <h4 class="mb-0">@TotalPlanned.ToString("N2")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #f39c12 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">🎯</h5>
+                        <h6 class="text-muted small mb-0">جمع موردنیاز</h6>
+                        <h4 class="mb-0 text-primary">@TotalNetRequired.ToString("N2")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid @(TotalSurplus >= 0 ? "#2ecc71" : "#e74c3c") !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">@(TotalSurplus >= 0 ? "➕" : "➖")</h5>
+                        <h6 class="text-muted small mb-0">@(TotalSurplus >= 0 ? "مازاد" : "کسری")</h6>
+                        <h4 class="mb-0 @(TotalSurplus >= 0 ? "text-success" : "text-danger")">
+                            @Math.Abs(TotalSurplus).ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== نمای تجمعی ===== -->
+        @if (viewMode == "aggregate")
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-primary text-white py-2">
+                    <h5 class="mb-0 fs-6">📋 ورود تولید</h5>
+                </div>
+                <div class="card-body p-2">
+                    <div class="alert alert-info small mb-2 py-2">
+                        💡 مقدار «تولید» رو وارد کن. مازاد (= تولید − موردنیاز) خودکار محاسبه می‌شه.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th class="small">نام محصول</th>
+                                    <th class="small">سفارش این بازه</th>
+                                    <th class="small">موجودی فعلی</th>
+                                    <th class="small">موردنیاز</th>
+                                    <th class="small" style="min-width: 120px;">تولید (ورودی)</th>
+                                    <th class="small">مازاد جدید</th>
+                                    <th class="small">موجودی پس از تولید</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in rows)
+                                {
+                                    <tr class="@(row.HasOrder ? "" : "table-light")">
+                                        <td class="small fw-bold">@row.ProductName</td>
+                                        <td class="small">
+                                            @if (row.PlannedQuantity > 0)
+                                            {
+                                                <span>@row.PlannedQuantity.ToString("N2") @row.Unit</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td class="small">
+                                            @if (row.CurrentStock > 0)
+                                            {
+                                                <span class="badge bg-info">@row.CurrentStock.ToString("N2")</span>
+                                            }
+                                            else if (row.CurrentStock < 0)
+                                            {
+                                                <span class="badge bg-danger">@row.CurrentStock.ToString("N2")</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">0</span>
+                                            }
+                                        </td>
+                                        <td class="small">
+                                            @if (row.NetRequired > 0)
+                                            {
+                                                <strong class="text-primary">@row.NetRequired.ToString("N2") @row.Unit</strong>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-success small">✔ موجودی کافیه</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" min="0"
+                                                   class="form-control form-control-sm"
+                                                   value="@row.NewProduction"
+                                                   @oninput="(e) => OnNewProductionChanged(row, e)" />
+                                        </td>
+                                        <td class="small">
+                                            @if (row.NewProduction > 0)
+                                            {
+                                                @if (row.Surplus > 0)
+                                                {
+                                                    <span class="badge bg-success">+@row.Surplus.ToString("N2")</span>
+                                                }
+                                                else if (row.Surplus < 0)
+                                                {
+                                                    <span class="badge bg-warning text-dark">@row.Surplus.ToString("N2")</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">0</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td class="small">
+                                            @if (row.NewProduction > 0)
+                                            {
+                                                <strong>@row.StockAfter.ToString("N2") @row.Unit</strong>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== دکمه‌های پایین ===== -->
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="FillWithNetRequired">
+                        📋 پر کردن موردنیاز
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ClearAll">
+                        🧹 پاک کردن همه
+                    </button>
+                </div>
+                <button class="btn btn-success" @onclick="SaveProduction" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span>⏳ در حال ذخیره...</span>
+                    }
+                    else
+                    {
+                        <span>💾 ثبت تولید (@RowsToSaveCount قلم)</span>
+                    }
+                </button>
+            </div>
+        }
+
+        <!-- ===== نمای تفکیکی ===== -->
+        @if (viewMode == "detail")
+        {
+            @if (byDate.Count == 0)
+            {
+                <div class="alert alert-info">در این بازه سفارشی وجود ندارد.</div>
+            }
+            else
+            {
+                @foreach (var day in byDate)
+                {
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-header bg-secondary text-white py-2 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 fs-6">
+                                📅 تاریخ تحویل: @day.Date.ToPersianDate()
+                            </h5>
+                            <div class="small">
+                                <span class="badge bg-light text-dark me-2">
+                                    @day.TotalPlanned.ToString("N2") جمع سفارش
+                                </span>
+                                <span class="badge bg-light text-dark">
+                                    @day.DistinctProducts محصول
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body p-2">
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th class="small">نام محصول</th>
+                                            <th class="small">سفارش‌شده</th>
+                                            <th class="small">تعداد سفارش</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var e in day.Entries)
+                                        {
+                                            <tr>
+                                                <td class="small">@e.ProductName</td>
+                                                <td class="small fw-bold">
+                                                    @e.PlannedQuantity.ToString("N2") @e.Unit
+                                                </td>
+                                                <td class="small text-muted">
+                                                    @e.OrderCount سفارش
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        }
+    }
+</div>
+
+@code {
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private List<ProductionRow> rows = new();
+    private string viewMode = "aggregate";
+    private List<ByDateGroup> byDate = new();
+
+    // ===== محاسبات زنده =====
+    private int RowsWithOrderCount => rows.Count(r => r.HasOrder);
+    private decimal TotalPlanned => rows.Sum(r => r.PlannedQuantity);
+    private decimal TotalNetRequired => rows.Sum(r => r.NetRequired);
+    private int RowsToSaveCount => rows.Count(r => r.NewProduction > 0);
+
+    // مازاد/کسری = چقدر تولید کردی − چقدر موردنیاز بود
+    private decimal TotalSurplus => rows.Sum(r => r.NewProduction) - TotalNetRequired;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fromDate = DateTime.Today;
+        toDate = DateTime.Today;
+        await LoadPlan();
+    }
+
+    private async Task LoadPlan()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var url = "api/production/plan";
+            var qs = new List<string>();
+            if (fromDate.HasValue) qs.Add($"from={fromDate.Value:yyyy-MM-dd}");
+            if (toDate.HasValue)   qs.Add($"to={toDate.Value:yyyy-MM-dd}");
+            if (qs.Any()) url += "?" + string.Join("&", qs);
+
+            var plan = await Http.GetFromJsonAsync<ProductionPlanDto>(url);
+
+            rows = new();
+            byDate = new();
+
+            if (plan != null)
+            {
+                if (plan.Entries != null)
+                {
+                    foreach (var e in plan.Entries)
+                    {
+                        rows.Add(new ProductionRow
+                        {
+                            ProductId = e.ProductId,
+                            ProductName = e.ProductName,
+                            Unit = e.Unit,
+                            CostPrice = e.CostPrice,
+                            PlannedQuantity = e.PlannedQuantity,
+                            CurrentStock = e.CurrentStock,
+                            NetRequired = e.NetRequired,
+                            HasOrder = e.HasOrder,
+                            NewProduction = 0
+                        });
+                    }
+                }
+
+                // ←←← این خط قبلاً جا افتاده بود، الان اضافه شده
+                byDate = plan.ByDate ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا در بارگذاری: {ex.Message}");
+            rows = new();
+            byDate = new();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnNewProductionChanged(ProductionRow row, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var val))
+        {
+            row.NewProduction = val < 0 ? 0 : val;
+        }
+        else
+        {
+            row.NewProduction = 0;
+        }
+        StateHasChanged();
+    }
+
+    private void FillWithNetRequired()
+    {
+        foreach (var row in rows)
+        {
+            row.NewProduction = row.NetRequired;
+        }
+        StateHasChanged();
+    }
+
+    private void ClearAll()
+    {
+        foreach (var row in rows)
+        {
+            row.NewProduction = 0;
+        }
+        StateHasChanged();
+    }
+
+    private async Task SaveProduction()
+    {
+        var toSave = rows.Where(x => x.NewProduction > 0).ToList();
+
+        if (!toSave.Any())
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "هیچ مقداری برای ثبت وارد نشده است.");
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+            $"آیا از ثبت تولید {toSave.Count} قلم مطمئن هستید؟");
+        if (!confirmed) return;
+
+        isSaving = true;
+
+        try
+        {
+            var dto = new
+            {
+                ProductionDate = DateTime.Now,
+                Entries = toSave.Select(x => new
+                {
+                    ProductId = x.ProductId,
+                    PlannedQuantity = x.NetRequired,
+                    ActualProducedQuantity = x.NewProduction,
+                    Notes = x.Notes
+                }).ToList()
+            };
+
+            var res = await Http.PostAsJsonAsync("api/production", dto);
+
+            if (res.IsSuccessStatusCode)
+            {
+                foreach (var row in rows)
+                {
+                    row.NewProduction = 0;
+                    row.Notes = null;
+                }
+
+                await JsRuntime.InvokeVoidAsync("alert", "✅ تولید با موفقیت ثبت شد.");
+                await LoadPlan();
+            }
+            else
+            {
+                var msg = await res.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ {msg}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    // ===== DTO ها =====
+    public class ProductionPlanDto
+    {
+        public DateTime From { get; set; }
+        public DateTime To { get; set; }
+        public List<PlanEntryDto> Entries { get; set; } = new();
+        public decimal TotalPlanned { get; set; }
+        public int DistinctProducts { get; set; }
+        public List<ByDateGroup> ByDate { get; set; } = new();
+    }
+
+    public class PlanEntryDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public decimal CostPrice { get; set; }
+        public decimal PlannedQuantity { get; set; }
+        public decimal CurrentStock { get; set; }
+        public decimal NetRequired { get; set; }   // ← اضافه شد
+        public bool HasOrder { get; set; }
+    }
+
+    public class ProductionRow
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public decimal CostPrice { get; set; }
+        public decimal PlannedQuantity { get; set; }
+        public decimal CurrentStock { get; set; }
+        public decimal NetRequired { get; set; }   // ← اضافه شد
+        public bool HasOrder { get; set; }
+        public decimal NewProduction { get; set; }
+        public string? Notes { get; set; }
+
+        // مازاد جدید = چقدر بیشتر از موردنیاز تولید کردی
+        public decimal Surplus => NewProduction - NetRequired;
+
+        // موجودی پس از تولید = موجودی فعلی + تولید جدید
+        public decimal StockAfter => CurrentStock + NewProduction;
+    }
+
+    public class ByDateGroup
+    {
+        public DateTime Date { get; set; }
+        public List<ByDateEntry> Entries { get; set; } = new();
+        public decimal TotalPlanned { get; set; }
+        public int DistinctProducts { get; set; }
+    }
+
+    public class ByDateEntry
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public decimal PlannedQuantity { get; set; }
+        public int OrderCount { get; set; }
+    }
+}

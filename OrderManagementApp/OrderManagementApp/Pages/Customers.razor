@@ -6,8 +6,24 @@
 <div class="container-fluid px-2 px-md-3" dir="rtl">
     <h2 class="fs-5 fs-md-4 mb-3">👥 مدیریت مشتریان</h2>
 
-    <button class="btn btn-primary mb-3 btn-sm" @onclick="ShowAddForm">➕ افزودن مشتری جدید</button>
 
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <button class="btn btn-primary btn-sm" @onclick="ShowAddForm">➕ افزودن مشتری جدید</button>
+
+        <div class="input-group input-group-sm" style="max-width: 350px;">
+            <span class="input-group-text">🔍</span>
+            <input type="text" class="form-control"
+                   placeholder="جستجو بر اساس نام یا تلفن..."
+                   @bind="searchText"
+                   @bind:event="oninput"
+                   @onkeyup="OnSearchKeyUp" />
+            @if (!string.IsNullOrEmpty(searchText))
+            {
+            <button class="btn btn-outline-secondary" type="button" @onclick="ClearSearch" title="پاک کردن">✖</button>
+            }
+        </div>
+    </div>
+    
     @if (showForm)
     {
         <div class="card shadow-sm mb-3">
@@ -102,6 +118,8 @@
 
     private List<CustomerDto> allCustomers = new();
     private List<CustomerDto> pagedCustomers = new();
+    private string searchText = "";
+    private System.Threading.Timer? _searchDebounce;
     private int currentPage = 1;
     private int pageSize = 15;
     private int totalPages => (int)Math.Ceiling((double)allCustomers.Count / pageSize);
@@ -116,7 +134,14 @@
     {
         try
         {
-            allCustomers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/Customers") ?? new();
+            var url = "api/Customers";
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                url += "?search=" + Uri.EscapeDataString(searchText.Trim());
+            }
+
+            allCustomers = await Http.GetFromJsonAsync<List<CustomerDto>>(url) ?? new();
+            currentPage = 1;   // برگرد به صفحه‌ی اول
             UpdatePagedList();
         }
         catch { allCustomers = new(); }
@@ -185,6 +210,26 @@
         showForm = false;
         editingCustomer = null;
         formModel = new();
+    }
+    
+    private void OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        // با هر تایپ، تایمر قبلی رو کنسل و یه تایمر جدید ۴۰۰ میلی‌ثانیه‌ای بذار
+        _searchDebounce?.Dispose();
+        _searchDebounce = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadCustomers();
+                StateHasChanged();
+            });
+        }, null, 400, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task ClearSearch()
+    {
+        searchText = "";
+        await LoadCustomers();
     }
 
     private async Task DeleteCustomer(int id)

@@ -1,0 +1,628 @@
+﻿@page "/inventory"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">📦 موجودی مازاد</h2>
+
+    @if (isLoading)
+    {
+    <div class="text-center text-muted mt-5">
+        <p>⏳ در حال بارگذاری...</p>
+    </div>
+    }
+    else
+    {
+    <!-- ===== کارت‌های خلاصه ===== -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-4">
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">📦</h5>
+                    <h6 class="text-muted small mb-0">اقلام موجود</h6>
+                    <h4 class="mb-0">@ItemsWithStockCount</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #2ecc71 !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">💰</h5>
+                    <h6 class="text-muted small mb-0">ارزش موجودی (بهای تمام‌شده)</h6>
+                    <h4 class="mb-0">@TotalStockValue.ToString("N0")</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #f39c12 !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">📈</h5>
+                    <h6 class="text-muted small mb-0">فروش بالقیمت واحد</h6>
+                    <h4 class="mb-0">@TotalSaleValue.ToString("N0")</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== جدول موجودی ===== -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white py-2">
+            <h5 class="mb-0 fs-6">📋 لیست موجودی</h5>
+        </div>
+        <div class="card-body p-2">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle">
+                    <thead>
+                    <tr>
+                        <th class="small">نام محصول</th>
+                        <th class="small">واحد</th>
+                        <th class="small">موجودی</th>
+                        <th class="small">بهای تمام‌شده</th>
+                        <th class="small">قیمت فروش</th>
+                        <th class="small">ارزش کل</th>
+                        <th class="small">آخرین به‌روزرسانی</th>
+                        <th class="small">عملیات</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @if (!items.Any())
+                    {
+                    <tr><td colspan="8" class="text-center text-muted small py-3">هیچ محصولی یافت نشد</td></tr>
+                    }
+                    else
+                    {
+                    @foreach (var item in items)
+                    {
+                    <tr class="@(item.Quantity > 0 ? "" : "text-muted")">
+                        <td class="small fw-bold">@item.ProductName</td>
+                        <td class="small">@item.Unit</td>
+                        <td class="small">
+                            @if (item.Quantity > 0)
+                            {
+                            <span class="badge bg-success">@item.Quantity.ToString("N2")</span>
+                            }
+                            else
+                            {
+                            <span class="badge bg-light text-dark">0</span>
+                            }
+                        </td>
+                        <td class="small">@item.CostPrice.ToString("N0")</td>
+                        <td class="small">@item.UnitPrice.ToString("N0")</td>
+                        <td class="small">@((item.Quantity * item.CostPrice).ToString("N0"))</td>
+                        <td class="small">
+                            @if (item.LastUpdated.HasValue)
+                            {
+                            @item.LastUpdated.Value.ToPersianDate()
+                            }
+                            else
+                            {
+                            <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
+                            @if (item.Quantity > 0)
+                            {
+                            <button class="btn btn-sm btn-success" title="فروش سریع" @onclick="() => OpenSaleModal(item)">💰</button>
+                            <button class="btn btn-sm btn-danger" title="ثبت ضایعات" @onclick="() => OpenWasteModal(item)">🗑️</button>
+                            }
+                            else
+                            {
+                            <span class="text-muted small">—</span>
+                            }
+                        </td>
+                    </tr>
+                    }
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    }
+</div>
+
+<!-- ==================================================================== -->
+<!-- مودال فروش سریع -->
+<!-- ==================================================================== -->
+@if (showSaleModal && saleItem != null)
+{
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white py-2">
+                <h5 class="modal-title fs-6">💰 فروش سریع از مازاد — @saleItem.ProductName</h5>
+                <button type="button" class="btn-close btn-close-white" @onclick="CloseSaleModal"></button>
+            </div>
+            <div class="modal-body">
+
+                <!-- ===== اطلاعات موجودی ===== -->
+                <div class="alert alert-info py-2 small">
+                    موجودی فعلی: <strong>@saleItem.Quantity.ToString("N2")</strong> @saleItem.Unit
+                </div>
+
+                <!-- ===== انتخاب مشتری ===== -->
+                <h6 class="fs-6 border-bottom pb-1 mb-2">👤 مشتری</h6>
+
+                @if (!isNewCustomer)
+                {
+                @if (selectedCustomer == null)
+                {
+                <div class="mb-2 position-relative">
+                    <label class="form-label small">جستجو مشتری (نام یا تلفن)</label>
+                    <input class="form-control form-control-sm"
+                           placeholder="تایپ کنید..."
+                           @bind="customerSearchText"
+                           @bind:event="oninput" />
+                    @if (FilteredCustomers.Any())
+                    {
+                    <div class="list-group position-absolute w-100 shadow-sm" style="z-index: 1080; max-height: 200px; overflow-y: auto;">
+                        @foreach (var c in FilteredCustomers)
+                        {
+                        <button type="button" class="list-group-item list-group-item-action py-1 small"
+                                @onclick="() => SelectCustomer(c)">
+                            <strong>@c.FullName</strong>
+                            @if (!string.IsNullOrEmpty(c.Phone))
+                            {
+                            <span class="text-muted"> — @c.Phone</span>
+                            }
+                        </button>
+                        }
+                    </div>
+                    }
+                </div>
+                <button class="btn btn-outline-primary btn-sm" @onclick="() => isNewCustomer = true">
+                    ➕ مشتری جدید
+                </button>
+                }
+                else
+                {
+                <div class="alert alert-success py-2 d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@selectedCustomer.FullName</strong>
+                        @if (!string.IsNullOrEmpty(selectedCustomer.Phone))
+                        {
+                        <span class="text-muted small"> — @selectedCustomer.Phone</span>
+                        }
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => selectedCustomer = null">تغییر</button>
+                </div>
+                }
+                }
+                else
+                {
+                <div class="row g-2">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small">نام کامل *</label>
+                        <input class="form-control form-control-sm" @bind="newCustomerName" />
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label small">تلفن</label>
+                        <input class="form-control form-control-sm" @bind="newCustomerPhone" />
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label small">آدرس</label>
+                        <input class="form-control form-control-sm" @bind="newCustomerAddress" />
+                    </div>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm mt-2" @onclick="() => isNewCustomer = false">
+                    🔙 بازگشت به جستجو
+                </button>
+                }
+
+                <!-- ===== جزئیات فروش ===== -->
+                <h6 class="fs-6 border-bottom pb-1 mb-2 mt-3">💰 جزئیات فروش</h6>
+                <div class="row g-2">
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small">مقدار *</label>
+                        <input type="number" step="0.01" class="form-control form-control-sm"
+                               @bind="saleQuantity" max="@saleItem.Quantity" />
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small">قیمت واحد (تومان)</label>
+                        <input type="number" class="form-control form-control-sm" @bind="saleUnitPrice" />
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small">تاریخ تحویل</label>
+                        <InputPersianDatePicker
+                            Value="@saleDeliveryDateString"
+                            ValueChanged="@((string v) => saleDeliveryDateString = v)"
+                            Placeholder="امروز"
+                            CssClass="form-control form-control-sm" />
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small">وضعیت پرداخت</label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" @bind="saleIsPaid" id="saleIsPaid" />
+                            <label class="form-check-label small" for="saleIsPaid">پرداخت شده</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small">توضیحات (اختیاری)</label>
+                        <input class="form-control form-control-sm" @bind="saleNotes" />
+                    </div>
+                </div>
+
+                <!-- ===== جمع کل ===== -->
+                <div class="alert alert-primary mt-3 py-2 d-flex justify-content-between">
+                    <span>جمع کل:</span>
+                    <strong>@((saleQuantity * saleUnitPrice).ToString("N0")) تومان</strong>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" @onclick="CloseSaleModal">انصراف</button>
+                <button class="btn btn-success btn-sm" @onclick="SaveSurplusSale" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                    <span>⏳ در حال ذخیره...</span>
+                    }
+                    else
+                    {
+                    <span>💾 ثبت فروش</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+<!-- ==================================================================== -->
+<!-- مودال ثبت ضایعات -->
+<!-- ==================================================================== -->
+@if (showWasteModal && wasteItem != null)
+{
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white py-2">
+                <h5 class="modal-title fs-6">🗑️ ثبت ضایعات — @wasteItem.ProductName</h5>
+                <button type="button" class="btn-close btn-close-white" @onclick="CloseWasteModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning py-2 small">
+                    موجودی فعلی: <strong>@wasteItem.Quantity.ToString("N2")</strong> @wasteItem.Unit
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label small">مقدار *</label>
+                        <input type="number" step="0.01" class="form-control form-control-sm"
+                               @bind="wasteQuantity" max="@wasteItem.Quantity" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small">دلیل</label>
+                        <select class="form-select form-select-sm" @bind="wasteReason">
+                            <option value="خراب شده">خراب شده</option>
+                            <option value="منقضی">منقضی شده</option>
+                            <option value="مازاد فروش‌نرفته">مازاد فروش‌نرفته</option>
+                            <option value="برگشتی">برگشتی از مشتری</option>
+                            <option value="متفرقه">متفرقه</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small">توضیحات (اختیاری)</label>
+                        <input class="form-control form-control-sm" @bind="wasteNotes" />
+                    </div>
+                </div>
+
+                <div class="alert alert-danger mt-3 py-2 d-flex justify-content-between small">
+                    <span>هزینه‌ی ضایعات:</span>
+                    <strong>@((wasteQuantity * wasteItem.CostPrice).ToString("N0")) تومان</strong>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button class="btn btn-secondary btn-sm" @onclick="CloseWasteModal">انصراف</button>
+                <button class="btn btn-danger btn-sm" @onclick="SaveWaste" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                    <span>⏳ در حال ذخیره...</span>
+                    }
+                    else
+                    {
+                    <span>💾 ثبت ضایعات</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+@code {
+// ===== لیست موجودی =====
+private List<InventoryItemDto> items = new();
+private bool isLoading = true;
+
+private int ItemsWithStockCount => items.Count(i => i.Quantity > 0);
+private decimal TotalStockValue => items.Sum(i => i.Quantity * i.CostPrice);
+private decimal TotalSaleValue => items.Sum(i => i.Quantity * i.UnitPrice);
+
+// ===== فروش =====
+private bool showSaleModal = false;
+private InventoryItemDto? saleItem;
+private decimal saleQuantity = 0;
+private decimal saleUnitPrice = 0;
+private bool saleIsPaid = false;
+private string? saleNotes;
+private string? saleDeliveryDateString;
+
+// ===== مشتری =====
+private List<CustomerDto> allCustomers = new();
+private string customerSearchText = "";
+private CustomerDto? selectedCustomer;
+private bool isNewCustomer = false;
+private string newCustomerName = "";
+private string newCustomerPhone = "";
+private string newCustomerAddress = "";
+
+private IEnumerable<CustomerDto> FilteredCustomers
+{
+get
+{
+if (string.IsNullOrWhiteSpace(customerSearchText))
+return allCustomers.Take(10);
+
+var s = customerSearchText.Trim();
+return allCustomers
+.Where(c => (c.FullName ?? "").Contains(s, StringComparison.OrdinalIgnoreCase)
+|| (c.Phone ?? "").Contains(s))
+.Take(10);
+}
+}
+
+// ===== ضایعات =====
+private bool showWasteModal = false;
+private InventoryItemDto? wasteItem;
+private decimal wasteQuantity = 0;
+private string wasteReason = "خراب شده";
+private string? wasteNotes;
+
+private bool isSaving = false;
+
+protected override async Task OnInitializedAsync()
+{
+await Task.WhenAll(LoadInventory(), LoadCustomers());
+isLoading = false;
+}
+
+private async Task LoadInventory()
+{
+try
+{
+items = await Http.GetFromJsonAsync<List<InventoryItemDto>>("api/inventory") ?? new();
+}
+catch
+{
+items = new();
+}
+}
+
+private async Task LoadCustomers()
+{
+try
+{
+allCustomers = await Http.GetFromJsonAsync<List<CustomerDto>>("api/customers") ?? new();
+}
+catch
+{
+allCustomers = new();
+}
+}
+
+// ================== فروش سریع ==================
+private void OpenSaleModal(InventoryItemDto item)
+{
+saleItem = item;
+saleQuantity = item.Quantity;   // پیش‌فرض: کل موجودی
+saleUnitPrice = item.UnitPrice;
+saleIsPaid = false;
+saleNotes = null;
+saleDeliveryDateString = null;
+customerSearchText = "";
+selectedCustomer = null;
+isNewCustomer = false;
+newCustomerName = "";
+newCustomerPhone = "";
+newCustomerAddress = "";
+showSaleModal = true;
+}
+
+private void CloseSaleModal()
+{
+showSaleModal = false;
+saleItem = null;
+}
+
+private void SelectCustomer(CustomerDto c)
+{
+selectedCustomer = c;
+customerSearchText = "";
+}
+
+private async Task SaveSurplusSale()
+{
+if (saleItem == null) return;
+
+if (selectedCustomer == null && (!isNewCustomer || string.IsNullOrWhiteSpace(newCustomerName)))
+{
+await JsRuntime.InvokeVoidAsync("alert", "لطفاً یک مشتری انتخاب کنید یا مشتری جدید ثبت کنید.");
+return;
+}
+
+if (saleQuantity <= 0)
+{
+await JsRuntime.InvokeVoidAsync("alert", "مقدار باید بزرگ‌تر از صفر باشد.");
+return;
+}
+
+if (saleQuantity > saleItem.Quantity)
+{
+await JsRuntime.InvokeVoidAsync("alert", "مقدار از موجودی بیشتر است.");
+return;
+}
+
+isSaving = true;
+
+try
+{
+var dto = new
+{
+ExistingCustomerId = selectedCustomer?.CustomerId,
+NewCustomer = isNewCustomer ? new
+{
+FullName = newCustomerName,
+Phone = newCustomerPhone,
+Address = newCustomerAddress
+} : null,
+DeliveryDate = ConvertPersianToGregorian(saleDeliveryDateString),
+IsPaid = saleIsPaid,
+Notes = saleNotes,
+Items = new[]
+{
+new
+{
+ProductId = saleItem.ProductId,
+Quantity = saleQuantity,
+UnitPriceOverride = saleUnitPrice
+}
+}
+};
+
+var res = await Http.PostAsJsonAsync("api/surplussale", dto);
+
+if (res.IsSuccessStatusCode)
+{
+CloseSaleModal();
+await LoadInventory();
+await JsRuntime.InvokeVoidAsync("alert", "✅ فروش با موفقیت ثبت شد.");
+}
+else
+{
+var msg = await res.Content.ReadAsStringAsync();
+await JsRuntime.InvokeVoidAsync("alert", $"❌ {msg}");
+}
+}
+catch (Exception ex)
+{
+await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+}
+finally
+{
+isSaving = false;
+}
+}
+
+// ================== ضایعات ==================
+private void OpenWasteModal(InventoryItemDto item)
+{
+wasteItem = item;
+wasteQuantity = item.Quantity;
+wasteReason = "خراب شده";
+wasteNotes = null;
+showWasteModal = true;
+}
+
+private void CloseWasteModal()
+{
+showWasteModal = false;
+wasteItem = null;
+}
+
+private async Task SaveWaste()
+{
+if (wasteItem == null) return;
+
+if (wasteQuantity <= 0)
+{
+await JsRuntime.InvokeVoidAsync("alert", "مقدار باید بزرگ‌تر از صفر باشد.");
+return;
+}
+
+if (wasteQuantity > wasteItem.Quantity)
+{
+await JsRuntime.InvokeVoidAsync("alert", "مقدار از موجودی بیشتر است.");
+return;
+}
+
+isSaving = true;
+
+try
+{
+var dto = new
+{
+ProductId = wasteItem.ProductId,
+Quantity = wasteQuantity,
+Reason = wasteReason,
+Notes = wasteNotes,
+WasteDate = DateTime.Now
+};
+
+var res = await Http.PostAsJsonAsync("api/waste", dto);
+
+if (res.IsSuccessStatusCode)
+{
+CloseWasteModal();
+await LoadInventory();
+await JsRuntime.InvokeVoidAsync("alert", "✅ ضایعات با موفقیت ثبت شد.");
+}
+else
+{
+var msg = await res.Content.ReadAsStringAsync();
+await JsRuntime.InvokeVoidAsync("alert", $"❌ {msg}");
+}
+}
+catch (Exception ex)
+{
+await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+}
+finally
+{
+isSaving = false;
+}
+}
+
+// ================== کمکی ==================
+private DateTime? ConvertPersianToGregorian(string? persianDate)
+{
+if (string.IsNullOrEmpty(persianDate)) return null;
+
+try
+{
+var normalized = persianDate
+.Replace('۰', '0').Replace('۱', '1').Replace('۲', '2').Replace('۳', '3').Replace('۴', '4')
+.Replace('۵', '5').Replace('۶', '6').Replace('۷', '7').Replace('۸', '8').Replace('۹', '9');
+
+var parts = normalized.Split('/');
+if (parts.Length != 3) return null;
+if (!int.TryParse(parts[0], out int y)) return null;
+if (!int.TryParse(parts[1], out int m)) return null;
+if (!int.TryParse(parts[2], out int d)) return null;
+
+var pc = new System.Globalization.PersianCalendar();
+return pc.ToDateTime(y, m, d, 0, 0, 0, 0);
+}
+catch { return null; }
+}
+
+// ===== DTO ها =====
+public class InventoryItemDto
+{
+public int ProductId { get; set; }
+public string ProductName { get; set; } = "";
+public string Unit { get; set; } = "";
+public decimal CostPrice { get; set; }
+public decimal UnitPrice { get; set; }
+public decimal Quantity { get; set; }
+public DateTime? LastUpdated { get; set; }
+}
+
+public class CustomerDto
+{
+public int CustomerId { get; set; }
+public string FullName { get; set; } = "";
+public string? Phone { get; set; }
+public string? Email { get; set; }
+public string? Address { get; set; }
+}
+}

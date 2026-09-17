@@ -92,6 +92,25 @@
                     </NavLink>
                 </div>
             }
+            
+            <!-- ===== گروه: انبار و تولید ===== -->
+            <div class="nav-group">
+                <button class="nav-group-toggle" @onclick='() => ToggleGroup("inventory")'>
+                    <span>📦 انبار و تولید</span>
+                    <span class="arrow @(openGroups["inventory"] ? "open" : "")">▾</span>
+                </button>
+                @if (openGroups["inventory"])
+                {
+                    <div class="nav-group-items">
+                        <NavLink class="nav-link text-white" href="/production" @onclick="CloseSidebar">
+                            <span>🏭 برنامه‌ی تولید</span>
+                        </NavLink>
+                        <NavLink class="nav-link text-white" href="/inventory" @onclick="CloseSidebar">
+                            <span>📦 موجودی مازاد</span>
+                        </NavLink>
+                    </div>
+                }
+            </div>
         </div>
     </div>
 
@@ -306,7 +325,8 @@
     {
         ["operations"] = false,
         ["reports"]    = false,
-        ["accounting"] = false
+        ["accounting"] = false,
+        ["inventory"]  = false
     };
 
     protected override void OnInitialized()
@@ -327,6 +347,10 @@
         else if (uri.StartsWith("expense"))
         {
             openGroups["accounting"] = true;
+        }
+        else if (uri.StartsWith("inventory") || uri.StartsWith("production"))
+        {
+            openGroups["inventory"] = true;
         }
     }
 

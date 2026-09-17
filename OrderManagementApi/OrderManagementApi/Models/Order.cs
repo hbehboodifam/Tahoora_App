@@ -21,11 +21,16 @@ namespace OrderManagementApi.Models
         public DateTime? PaymentDate { get; set; }
 
         public string? Notes { get; set; }
+        
+        /// <summary>منبع سفارش: Regular / Surplus / Channel</summary>
+        [MaxLength(20)]
+        public string OrderSource { get; set; } = "Regular";
 
         // Navigation Properties (بدون [Required])
         [ForeignKey("CustomerId")]
         public virtual Customer? Customer { get; set; }
 
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+        
     }
 }
