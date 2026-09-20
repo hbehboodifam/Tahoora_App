@@ -3,28 +3,39 @@
 @inject IJSRuntime JsRuntime
 
 <div class="container-fluid px-2 px-md-3" dir="rtl">
-    <h2 class="fs-5 fs-md-4 mb-3">📦 مدیریت محصولات</h2>
+    <!-- ===== هدر ===== -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fs-5 fs-md-4 mb-0">📦 مدیریت محصولات</h2>
+        <button class="btn btn-primary btn-sm" @onclick="ShowAddForm" disabled="@isBusy">
+            ➕ افزودن محصول جدید
+        </button>
+    </div>
 
-    <button class="btn btn-primary mb-3 btn-sm" @onclick="ShowAddForm">➕ افزودن محصول جدید</button>
+    <!-- ===== جستجو ===== -->
+    <div class="mb-3 col-12 col-md-4">
+        <input class="form-control form-control-sm" placeholder="🔍 جستجوی محصول..." 
+               @bind="searchTerm" @bind:event="oninput" @bind:after="FilterProducts" />
+    </div>
 
+    <!-- ===== فرم افزودن / ویرایش ===== -->
     @if (showForm)
     {
-        <div class="card shadow-sm mb-3">
+        <div class="card shadow-sm mb-3 border-primary">
             <div class="card-header bg-primary text-white py-2">
                 <h5 class="mb-0 fs-6">@(editingProduct == null ? "افزودن محصول" : "ویرایش محصول")</h5>
             </div>
             <div class="card-body p-2 p-md-3">
 
-                <!-- ===== اطلاعات پایه ===== -->
+                <!-- اطلاعات پایه -->
                 <h6 class="text-primary border-bottom pb-1 mb-2 fs-6">📋 اطلاعات پایه</h6>
                 <div class="row g-2">
                     <div class="col-12 col-md-4">
-                        <label class="form-label small">نام محصول</label>
+                        <label class="form-label small">نام محصول <span class="text-danger">*</span></label>
                         <input class="form-control form-control-sm" @bind="formModel.ProductName" />
                     </div>
                     <div class="col-6 col-md-4">
                         <label class="form-label small">قیمت فروش (تومان)</label>
-                        <input class="form-control form-control-sm" @bind="formModel.UnitPrice" />
+                        <input type="number" step="any" class="form-control form-control-sm" @bind="formModel.UnitPrice" />
                     </div>
                     <div class="col-6 col-md-4">
                         <label class="form-label small">واحد</label>
@@ -36,35 +47,35 @@
                     </div>
                 </div>
 
-                <!-- ===== بهای تمام‌شده ===== -->
+                <!-- بهای تمام‌شده -->
                 <h6 class="text-success border-bottom pb-1 mb-2 mt-3 fs-6">💵 اجزای بهای تمام‌شده</h6>
                 <div class="row g-2">
                     <div class="col-6 col-md-3">
                         <label class="form-label small">مواد اولیه (تومان)</label>
-                        <input class="form-control form-control-sm" @bind="formModel.MaterialCost" />
+                        <input type="number" step="any" class="form-control form-control-sm" @bind="formModel.MaterialCost" />
                     </div>
                     <div class="col-6 col-md-3">
                         <label class="form-label small">بسته‌بندی (تومان)</label>
-                        <input class="form-control form-control-sm" @bind="formModel.PackagingCost" />
+                        <input type="number" step="any" class="form-control form-control-sm" @bind="formModel.PackagingCost" />
                     </div>
                     <div class="col-6 col-md-3">
                         <label class="form-label small">ضایعات و پرت (%)</label>
-                        <input class="form-control form-control-sm" @bind="formModel.WastePercent" />
+                        <input type="number" step="any" class="form-control form-control-sm" @bind="formModel.WastePercent" />
                     </div>
                     <div class="col-6 col-md-3">
                         <label class="form-label small">کارگر (تومان)</label>
-                        <input class="form-control form-control-sm" @bind="formModel.LaborCost" />
+                        <input type="number" step="any" class="form-control form-control-sm" @bind="formModel.LaborCost" />
                     </div>
                     <div class="col-6 col-md-3">
                         <label class="form-label small">سربار (%)</label>
-                        <input class="form-control form-control-sm" @bind="formModel.OverheadPercent" />
-                        <small class="text-muted">برق، اجاره، استهلاک، تبلیغات</small>
+                        <input type="number" step="any" class="form-control form-control-sm" @bind="formModel.OverheadPercent" />
+                        <small class="text-muted d-block mt-1">برق، اجاره، استهلاک، تبلیغات</small>
                     </div>
                 </div>
 
-                <!-- ===== پیش‌نمایش زنده ===== -->
+                <!-- پیش‌نمایش زنده -->
                 <div class="alert alert-info mt-3 mb-2 py-2">
-                    <div class="row small">
+                    <div class="row small g-2">
                         <div class="col-6 col-md-3">💰 بهای تمام‌شده: <strong>@LiveCostPrice.ToString("N0")</strong> تومان</div>
                         <div class="col-6 col-md-3">📈 قیمت فروش: <strong>@formModel.UnitPrice.ToString("N0")</strong> تومان</div>
                         <div class="col-6 col-md-3">✅ سود هر واحد: <strong class="@(LiveProfit >= 0 ? "text-success" : "text-danger")">@LiveProfit.ToString("N0")</strong> تومان</div>
@@ -73,16 +84,79 @@
                 </div>
 
                 <div class="mt-3">
-                    <button class="btn btn-success btn-sm" @onclick="SaveProduct">💾 ذخیره</button>
-                    <button class="btn btn-secondary btn-sm" @onclick="CancelForm">❌ انصراف</button>
+                    <button class="btn btn-success btn-sm me-1" @onclick="SaveProduct" disabled="@isBusy">
+                        @if (isBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        💾 ذخیره
+                    </button>
+                    <button class="btn btn-secondary btn-sm" @onclick="CancelForm" disabled="@isBusy">❌ انصراف</button>
                 </div>
             </div>
         </div>
     }
 
-    <div class="table-responsive">
-        <table class="table table-hover table-sm">
-            <thead>
+    <!-- =================================================== -->
+    <!-- 📱 ۱. نمای مخصوص موبایل (کارت‌ها - در screens < 768px) -->
+    <!-- =================================================== -->
+    <div class="d-block d-md-none">
+        @if (isLoading)
+        {
+            <div class="text-center text-muted py-4 small">در حال دریافت اطلاعات...</div>
+        }
+        else if (pagedProducts == null || !pagedProducts.Any())
+        {
+            <div class="text-center text-muted py-4 small">هیچ محصولی یافت نشد</div>
+        }
+        else
+        {
+            @foreach (var p in pagedProducts)
+            {
+                var profit = p.UnitPrice - p.CostPrice;
+                var margin = p.UnitPrice > 0 ? (profit / p.UnitPrice) * 100 : 0;
+                
+                <div class="card shadow-sm mb-2 border-0 bg-body-tertiary">
+                    <div class="card-body p-2 p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-dark fs-6">@p.ProductName</span>
+                            <span class="badge bg-secondary-subtle text-secondary border">@p.Unit</span>
+                        </div>
+                        
+                        <div class="row g-2 small border-top pt-2">
+                            <div class="col-6">
+                                <span class="text-muted d-block">قیمت فروش</span>
+                                <strong>@p.UnitPrice.ToString("N0") <small>تومان</small></strong>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted d-block">بهای تمام‌شده</span>
+                                <strong>@p.CostPrice.ToString("N0") <small>تومان</small></strong>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted d-block">سود هر واحد</span>
+                                <strong class="@(profit >= 0 ? "text-success" : "text-danger")">
+                                    @profit.ToString("N0") <small>تومان</small>
+                                </strong>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted d-block">حاشیه سود</span>
+                                <strong>@margin.ToString("N1")%</strong>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-3 pt-2 border-top">
+                            <button class="btn btn-sm btn-outline-warning px-3" @onclick="() => EditProduct(p)" disabled="@isBusy">✏️ ویرایش</button>
+                            <button class="btn btn-sm btn-outline-danger px-3" @onclick="() => DeleteProduct(p.ProductId)" disabled="@isBusy">🗑️ حذف</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <!-- =================================================== -->
+    <!-- 🖥️ ۲. نمای مخصوص دسکتاپ و تبلت (جدول - در screens >= 768px) -->
+    <!-- =================================================== -->
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
                 <tr>
                     <th class="small">نام محصول</th>
                     <th class="small">قیمت فروش (تومان)</th>
@@ -94,9 +168,13 @@
                 </tr>
             </thead>
             <tbody>
-                @if (pagedProducts == null || !pagedProducts.Any())
+                @if (isLoading)
                 {
-                    <tr><td colspan="7" class="text-center text-muted small py-2">هیچ محصولی یافت نشد</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted small py-3">در حال دریافت اطلاعات...</td></tr>
+                }
+                else if (pagedProducts == null || !pagedProducts.Any())
+                {
+                    <tr><td colspan="7" class="text-center text-muted small py-3">هیچ محصولی یافت نشد</td></tr>
                 }
                 else
                 {
@@ -105,7 +183,7 @@
                         var profit = p.UnitPrice - p.CostPrice;
                         var margin = p.UnitPrice > 0 ? (profit / p.UnitPrice) * 100 : 0;
                         <tr>
-                            <td class="small">@p.ProductName</td>
+                            <td class="small fw-bold">@p.ProductName</td>
                             <td class="small">@p.UnitPrice.ToString("N0")</td>
                             <td class="small">@p.CostPrice.ToString("N0")</td>
                             <td class="small @(profit >= 0 ? "text-success" : "text-danger")">
@@ -114,8 +192,8 @@
                             <td class="small">@margin.ToString("N1")%</td>
                             <td class="small">@p.Unit</td>
                             <td>
-                                <button class="btn btn-sm btn-warning" @onclick="() => EditProduct(p)">✏️</button>
-                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteProduct(p.ProductId)">🗑️</button>
+                                <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => EditProduct(p)" disabled="@isBusy">✏️</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteProduct(p.ProductId)" disabled="@isBusy">🗑️</button>
                             </td>
                         </tr>
                     }
@@ -124,10 +202,11 @@
         </table>
     </div>
 
+    <!-- ===== صفحه‌بندی (شرک بین موبایل و دسکتاپ) ===== -->
     @if (totalPages > 1)
     {
-        <div class="d-flex justify-content-between align-items-center mt-3">
-            <span class="small">صفحه @currentPage از @totalPages</span>
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+            <span class="small text-muted">صفحه @currentPage از @totalPages (کل: @filteredProducts.Count)</span>
             <div class="d-flex gap-1 flex-wrap">
                 <button class="btn btn-sm btn-outline-primary" disabled="@(currentPage == 1)" @onclick="() => GoToPage(currentPage - 1)">قبلی</button>
                 @for (int i = 1; i <= totalPages; i++)
@@ -150,7 +229,6 @@
         public string Unit { get; set; } = "کیلوگرم";
         public string? Description { get; set; }
 
-        // بهای تمام‌شده
         public decimal MaterialCost { get; set; }
         public decimal PackagingCost { get; set; }
         public decimal WastePercent { get; set; }
@@ -160,16 +238,20 @@
     }
 
     private List<ProductDto> allProducts = new();
+    private List<ProductDto> filteredProducts = new();
     private List<ProductDto> pagedProducts = new();
+    
+    private string searchTerm = "";
     private int currentPage = 1;
     private int pageSize = 15;
-    private int totalPages => (int)Math.Ceiling((double)allProducts.Count / pageSize);
+    private int totalPages => (int)Math.Ceiling((double)filteredProducts.Count / pageSize);
 
     private bool showForm = false;
+    private bool isLoading = false;
+    private bool isBusy = false;
     private ProductDto? editingProduct = null;
     private ProductDto formModel = new();
 
-    // پیش‌نمایش زنده
     private decimal LiveCostPrice => ComputeCostPrice(
         formModel.MaterialCost, formModel.PackagingCost,
         formModel.WastePercent, formModel.LaborCost, formModel.OverheadPercent);
@@ -192,17 +274,43 @@
 
     private async Task LoadProducts()
     {
+        isLoading = true;
         try
         {
             allProducts = await Http.GetFromJsonAsync<List<ProductDto>>("api/Products") ?? new();
-            UpdatePagedList();
+            FilterProducts();
         }
-        catch { allProducts = new(); }
+        catch (Exception ex)
+        {
+            allProducts = new();
+            FilterProducts();
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا در دریافت اطلاعات: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void FilterProducts()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredProducts = allProducts.ToList();
+        }
+        else
+        {
+            filteredProducts = allProducts
+                .Where(p => p.ProductName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        currentPage = 1;
+        UpdatePagedList();
     }
 
     private void UpdatePagedList()
     {
-        pagedProducts = allProducts.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+        pagedProducts = filteredProducts.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
     }
 
     private void GoToPage(int page)
@@ -241,8 +349,17 @@
 
     private async Task SaveProduct()
     {
+        if (string.IsNullOrWhiteSpace(formModel.ProductName))
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "⚠️ لطفاً نام محصول را وارد کنید.");
+            return;
+        }
+
+        isBusy = true;
         try
         {
+            formModel.CostPrice = LiveCostPrice;
+
             HttpResponseMessage response;
             if (editingProduct == null)
                 response = await Http.PostAsJsonAsync("api/Products", formModel);
@@ -264,6 +381,10 @@
         {
             await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
         }
+        finally
+        {
+            isBusy = false;
+        }
     }
 
     private void CancelForm()
@@ -278,11 +399,27 @@
         var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", "آیا از حذف این محصول مطمئن هستید؟");
         if (!confirmed) return;
 
+        isBusy = true;
         try
         {
-            await Http.DeleteAsync($"api/Products/{id}");
-            await LoadProducts();
+            var response = await Http.DeleteAsync($"api/Products/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadProducts();
+            }
+            else
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا در حذف: {content}");
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+        }
+        finally
+        {
+            isBusy = false;
+        }
     }
 }

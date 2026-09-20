@@ -4,175 +4,274 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JsRuntime
 
-<div class="container-fluid px-2 px-md-3" dir="rtl">
-    <h2 class="fs-5 fs-md-4 mb-3">➕ ثبت سفارش جدید</h2>
-
-    <!-- ===== انتخاب مشتری ===== -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-primary text-white py-2">
-            <h5 class="mb-0 fs-6">👤 انتخاب مشتری</h5>
-        </div>
-        <div class="card-body p-2 p-md-3">
-            <div class="mb-2">
-                <input type="text" class="form-control form-control-sm" placeholder="جستجوی مشتری (نام یا تلفن)..." @value="searchTerm" @oninput="OnSearchTermChanged" />
-            </div>
-            <div class="list-group mb-2" style="max-height:200px; overflow-y:auto; max-height: 50vh;">
-                @if (searchResults == null || !searchResults.Any())
-                {
-                    <div class="list-group-item text-muted py-2 small">مشتری‌ای یافت نشد.</div>
-                }
-                else
-                {
-                    @foreach (var c in searchResults)
-                    {
-                        <button type="button" class="list-group-item list-group-item-action @(selectedCustomerId == c.CustomerId ? "active" : "") py-2"
-                                @onclick="() => SelectCustomer(c)">
-                            <div class="d-flex justify-content-between flex-wrap">
-                                <span class="fw-bold">@c.FullName</span>
-                                <span class="text-muted small">@c.Phone</span>
-                            </div>
-                        </button>
-                    }
-                }
-            </div>
-            @if (selectedCustomerId > 0)
-            {
-                <div class="alert alert-success py-1 px-2 mb-2 small">✅ <strong>@selectedCustomerName</strong></div>
-            }
-            <button type="button" class="btn btn-outline-primary btn-sm w-100" @onclick="ToggleAddCustomerForm">
-                ➕ افزودن مشتری جدید
-            </button>
-        </div>
+<div class="container-fluid px-2 px-md-3 pb-5 pb-md-3" dir="rtl">
+    
+    <!-- هدر اصلی -->
+    <div class="d-flex justify-content-between align-items-center my-3">
+        <h2 class="fs-5 fs-md-4 mb-0 fw-bold text-primary-dark">➕ ثبت سفارش جدید</h2>
+        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="@(() => NavigationManager.NavigateTo("/orders"))">
+            ⬅️ بازگشت به لیست
+        </button>
     </div>
 
-    <!-- ===== فرم افزودن مشتری جدید ===== -->
-    @if (showAddCustomerForm)
-    {
-        <div class="card shadow-sm mb-3 border-primary">
-            <div class="card-header bg-success text-white py-2">
-                <h5 class="mb-0 fs-6">➕ افزودن مشتری جدید</h5>
-            </div>
-            <div class="card-body p-2 p-md-3">
-                <div class="row g-2">
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small">نام کامل</label>
-                        <input class="form-control form-control-sm" @bind="newCustomer.FullName" />
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label small">تلفن</label>
-                        <input class="form-control form-control-sm" @bind="newCustomer.Phone" />
-                    </div>
+    <div class="row g-3">
+        <!-- ===== بخش سمت راست: انتخاب مشتری و اطلاعات تحویل ===== -->
+        <div class="col-12 col-lg-5">
+            <!-- کارت انتخاب مشتری -->
+            <div class="card shadow-sm border-0 mb-3 rounded-3">
+                <div class="card-header bg-primary text-white py-2 rounded-top-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fs-6 fw-bold">👤 انتخاب مشتری</h5>
+                    @if (selectedCustomerId > 0)
+                    {
+                        <span class="badge bg-light text-primary">تایید شده</span>
+                    }
                 </div>
-                <div class="row mt-2 g-2">
-                    <div class="col-12">
-                        <label class="form-label small">ایمیل</label>
-                        <input class="form-control form-control-sm" @bind="newCustomer.Email" />
+                <div class="card-body p-2 p-md-3">
+                    <div class="mb-2">
+                        <input type="text" 
+                               class="form-control form-control-md" 
+                               placeholder="🔍 جستجوی نام یا تلفن..." 
+                               @value="searchTerm" 
+                               @oninput="OnSearchTermChanged" />
                     </div>
-                </div>
-                <div class="mt-3 d-flex gap-2">
-                    <button type="button" class="btn btn-success btn-sm" @onclick="SaveNewCustomer">💾 ذخیره</button>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ToggleAddCustomerForm">❌ انصراف</button>
-                </div>
-            </div>
-        </div>
-    }
 
-    <!-- ===== اطلاعات سفارش ===== -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-info text-white py-2">
-            <h5 class="mb-0 fs-6">📋 اطلاعات سفارش</h5>
-        </div>
-        <div class="card-body p-2 p-md-3">
-            <div class="mb-3">
-                <label class="form-label small">تاریخ تحویل</label>
-                <InputPersianDatePicker 
-                    Value="@deliveryDateString"
-                    ValueChanged="@((string value) => { deliveryDateString = value; })"
-                    Placeholder="انتخاب تاریخ تحویل"
-                    CssClass="form-control form-control-sm"/>
-            </div>
-
-            <div class="row g-2 mb-3">
-                <div class="col-12 col-md-4">
-                    <label class="form-label small">محصول</label>
-                    <select class="form-select form-select-sm" @bind:get="selectedProductId" @bind:set="OnProductSelected">
-                        <option value="0">انتخاب محصول...</option>
-                        @foreach (var p in products)
+                    <!-- لیست نتایج جستجو -->
+                    <div class="list-group mb-2 border rounded-3 overflow-auto" style="max-height: 180px;">
+                        @if (searchResults == null || !searchResults.Any())
                         {
-                            <option value="@p.ProductId">@p.ProductName - @p.UnitPrice.ToString("N0")</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label small">تعداد</label>
-                    <input type="number" class="form-control form-control-sm" @bind="newQuantity" step="0.1" min="0.1" />
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label small">قیمت واحد</label>
-                    <input type="number" class="form-control form-control-sm" @bind="newUnitPrice" step="1" min="0" />
-                </div>
-                <div class="col-12 col-md-2 d-flex align-items-end">
-                    <button type="button" class="btn btn-primary btn-sm w-100" @onclick="AddItem">➕ افزودن</button>
-                </div>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-hover table-sm">
-                    <thead>
-                        <tr>
-                            <th class="small">محصول</th>
-                            <th class="small">تعداد</th>
-                            <th class="small">قیمت واحد</th>
-                            <th class="small">جمع</th>
-                            <th class="small">عملیات</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (items == null || !items.Any())
-                        {
-                            <tr><td colspan="5" class="text-muted text-center small py-2">هیچ محصولی انتخاب نشده است.</td></tr>
+                            <div class="list-group-item text-muted py-2 small text-center">مشتری‌ای یافت نشد.</div>
                         }
                         else
                         {
-                            @foreach (var item in items)
+                            @foreach (var c in searchResults)
                             {
-                                <tr>
-                                    <td class="small">@item.ProductName</td>
-                                    <td class="small">@item.Quantity.ToString("N2")</td>
-                                    <td class="small">@item.UnitPrice.ToString("N0")</td>
-                                    <td class="small">@item.TotalPrice.ToString("N0")</td>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => RemoveItem(item)">🗑️</button>
-                                    </td>
-                                </tr>
+                                <button type="button" 
+                                        class="list-group-item list-group-item-action @(selectedCustomerId == c.CustomerId ? "active fw-bold" : "") py-2 px-3"
+                                        @onclick="() => SelectCustomer(c)">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>@c.FullName</span>
+                                        <span class="@(selectedCustomerId == c.CustomerId ? "text-white-50" : "text-muted") small">@c.Phone</span>
+                                    </div>
+                                </button>
                             }
-                            <tr class="table-info fw-bold">
-                                <td colspan="3" class="text-end small">جمع کل:</td>
-                                <td class="small">@items.Sum(i => i.TotalPrice).ToString("N0")</td>
-                                <td></td>
-                            </tr>
                         }
-                    </tbody>
-                </table>
+                    </div>
+
+                    @if (selectedCustomerId > 0)
+                    {
+                        <div class="alert alert-success py-2 px-3 mb-2 small d-flex justify-content-between align-items-center rounded-3">
+                            <span>✅ <strong>@selectedCustomerName</strong></span>
+                            <button type="button" class="btn-close btn-sm" @onclick="ClearSelectedCustomer"></button>
+                        </div>
+                    }
+
+                    <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 rounded-2" @onclick="ToggleAddCustomerForm">
+                        ➕ افزودن مشتری جدید
+                    </button>
+                </div>
             </div>
 
-            <div class="form-check mb-2">
-                <input class="form-check-input" type="checkbox" @bind="isPaid" id="isPaid" style="width: 1.2rem; height: 1.2rem;" />
-                <label class="form-check-label small" for="isPaid">پرداخت شده</label>
-            </div>
+            <!-- فرم افزودن مشتری جدید -->
+            @if (showAddCustomerForm)
+            {
+                <div class="card shadow-sm border-success mb-3 rounded-3">
+                    <div class="card-header bg-success text-white py-2">
+                        <h5 class="mb-0 fs-6 fw-bold">➕ افزودن سریع مشتری</h5>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-bold">نام کامل *</label>
+                                <input class="form-control form-control-md" @bind="newCustomer.FullName" placeholder="مثال: علی محمدی" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small fw-bold">شماره تلفن</label>
+                                <input class="form-control form-control-md" @bind="newCustomer.Phone" placeholder="0912..." />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small">ایمیل (اختیاری)</label>
+                                <input class="form-control form-control-md" @bind="newCustomer.Email" placeholder="email@example.com" />
+                            </div>
+                        </div>
+                        <div class="mt-3 d-flex gap-2">
+                            <button type="button" class="btn btn-success btn-sm px-3" @onclick="SaveNewCustomer" disabled="@isSubmitting">
+                                💾 ذخیره مشتری
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="ToggleAddCustomerForm">❌ انصراف</button>
+                        </div>
+                    </div>
+                </div>
+            }
 
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" @bind="sendSms" id="sendSms" style="width: 1.2rem; height: 1.2rem;" />
-                <label class="form-check-label small" for="sendSms">📱 ارسال پیامک تأیید به مشتری</label>
-            </div>
+            <!-- تنظیمات تحویل و پرداخت -->
+            <div class="card shadow-sm border-0 mb-3 rounded-3">
+                <div class="card-header bg-secondary text-white py-2 rounded-top-3">
+                    <h5 class="mb-0 fs-6 fw-bold">📅 تنظیمات تحویل و پرداخت</h5>
+                </div>
+                <div class="card-body p-3">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">تاریخ تحویل سفارش</label>
+                        <InputPersianDatePicker 
+                            Value="@deliveryDateString"
+                            ValueChanged="@((string value) => { deliveryDateString = value; })"
+                            Placeholder="انتخاب تاریخ تحویل"
+                            CssClass="form-control form-control-md" />
+                    </div>
 
-            <div class="mt-3 d-flex flex-column flex-md-row gap-2">
-                <button type="button" class="btn btn-success" @onclick="SaveOrder" disabled="@(selectedCustomerId == 0 || !items.Any())">
-                    💾 ثبت سفارش
-                </button>
-                <button type="button" class="btn btn-secondary" @onclick="@(() => NavigationManager.NavigateTo("/orders"))">❌ انصراف</button>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" @bind="isPaid" id="isPaidSwitch" style="width: 2.2em; height: 1.2em;" />
+                        <label class="form-check-label me-2 fw-bold small" for="isPaidSwitch">مبلغ تسویه شده است</label>
+                    </div>
+
+                    <div class="form-check form-switch mb-1">
+                        <input class="form-check-input" type="checkbox" @bind="sendSms" id="sendSmsSwitch" style="width: 2.2em; height: 1.2em;" />
+                        <label class="form-check-label me-2 small" for="sendSmsSwitch">📱 ارسال پیامک تأیید به مشتری</label>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- ===== بخش سمت چپ: افزودن اقلام و اقلام فاکتور ===== -->
+        <div class="col-12 col-lg-7">
+            <div class="card shadow-sm border-0 mb-3 rounded-3">
+                <div class="card-header bg-dark text-white py-2 rounded-top-3">
+                    <h5 class="mb-0 fs-6 fw-bold">🛒 انتخاب و افزودن محصولات</h5>
+                </div>
+                <div class="card-body p-3">
+                    <!-- انتخاب محصول -->
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">محصول</label>
+                        <select class="form-select form-select-md" @bind:get="selectedProductId" @bind:set="OnProductSelected">
+                            <option value="0">--- انتخاب محصول ---</option>
+                            @foreach (var p in products)
+                            {
+                                <option value="@p.ProductId">@p.ProductName (@p.UnitPrice.ToString("N0") تومان)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- تعداد و قیمت -->
+                    <div class="row g-2 mb-2">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">مقدار / وزن (کیلوگرم)</label>
+                            <input type="number" class="form-control form-control-md" @bind="newQuantity" step="0.1" min="0.1" />
+                            
+                            <!-- دکمه‌های میانبر لمسی موبایل -->
+                            <div class="btn-group w-100 mt-1">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => AdjustQuantity(-0.5m)">0.5-</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => AdjustQuantity(0.5m)">0.5+</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => AdjustQuantity(1.0m)">1+</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => AdjustQuantity(5.0m)">5+</button>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">قیمت واحد (تومان)</label>
+                            <input type="number" class="form-control form-control-md" @bind="newUnitPrice" step="1000" min="0" />
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-primary w-100 py-2 fw-bold mt-2 rounded-2" @onclick="AddItem">
+                        ➕ افزودن به فاکتور
+                    </button>
+                </div>
+            </div>
+
+            <!-- جدول اقلام سفارش -->
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fs-6 fw-bold">📦 اقلام فاکتور</h5>
+                    <span class="badge bg-secondary">@items.Count آیتم</span>
+                </div>
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive-cards">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>محصول</th>
+                                    <th>مقدار</th>
+                                    <th>قیمت واحد</th>
+                                    <th>جمع کل</th>
+                                    <th class="text-center">حذف</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (items == null || !items.Any())
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-muted text-center py-4">
+                                            هنوز هیچ محصولی به سفارش اضافه نشده است.
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    @foreach (var item in items)
+                                    {
+                                        <tr>
+                                            <td data-label="محصول" class="fw-bold">@item.ProductName</td>
+                                            <td data-label="مقدار">@item.Quantity.ToString("N2")</td>
+                                            <td data-label="قیمت واحد">@item.UnitPrice.ToString("N0") تومان</td>
+                                            <td data-label="جمع کل" class="fw-bold text-success">@item.TotalPrice.ToString("N0") تومان</td>
+                                            <td data-label="عملیات" class="text-center">
+                                                <button type="button" class="btn btn-outline-danger btn-sm border-0" @onclick="() => RemoveItem(item)">
+                                                    🗑️
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (items?.Any() == true)
+                    {
+                        <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded-3 mt-3 border">
+                            <span class="fw-bold fs-6">جمع کل سفارش:</span>
+                            <span class="fw-bold fs-5 text-success">@items.Sum(i => i.TotalPrice).ToString("N0") تومان</span>
+                        </div>
+                    }
+
+                    <!-- دکمه‌های نهایی در دسکتاپ -->
+                    <div class="mt-3 d-none d-md-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-secondary px-4" @onclick="@(() => NavigationManager.NavigateTo("/orders"))">
+                            انصراف
+                        </button>
+                        <button type="button" class="btn btn-success px-5 py-2 fw-bold" @onclick="SaveOrder" disabled="@(selectedCustomerId == 0 || !items.Any() || isSubmitting)">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>در حال ثبت...</span>
+                            }
+                            else
+                            {
+                                <span>💾 ثبت نهایی سفارش</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== نوار چسبیده در پایین صفحه ویژه موبایل (Sticky Mobile Footer) ===== -->
+    <div class="d-md-none position-fixed bottom-0 start-0 end-0 bg-white border-top shadow-lg p-2 z-3">
+        <div class="d-flex justify-content-between align-items-center mb-2 px-2">
+            <span class="small text-muted">جمع کل فاکتور:</span>
+            <span class="fw-bold text-success fs-6">@items.Sum(i => i.TotalPrice).ToString("N0") تومان</span>
+        </div>
+        <button type="button" class="btn btn-success w-100 py-2 fw-bold" @onclick="SaveOrder" disabled="@(selectedCustomerId == 0 || !items.Any() || isSubmitting)">
+            @if (isSubmitting)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+                <span>در حال ثبت...</span>
+            }
+            else
+            {
+                <span>💾 ثبت نهایی سفارش</span>
+            }
+        </button>
     </div>
 </div>
 
@@ -234,6 +333,7 @@
     private DateTime deliveryDate = DateTime.Now.AddDays(3);
     private bool isPaid = false;
     private bool sendSms = true;
+    private bool isSubmitting = false;
 
     private int selectedProductId = 0;
     private decimal newQuantity = 1;
@@ -247,7 +347,6 @@
         await LoadCustomers();
         await LoadProducts();
     
-        // تنظیم تاریخ پیش‌فرض به شمسی
         var defaultDate = DateTime.Now.AddDays(3);
         var pc = new System.Globalization.PersianCalendar();
         deliveryDateString = $"{pc.GetYear(defaultDate):0000}/{pc.GetMonth(defaultDate):00}/{pc.GetDayOfMonth(defaultDate):00}";
@@ -300,6 +399,14 @@
         searchResults = new List<CustomerSearchDto> { customer };
     }
 
+    private void ClearSelectedCustomer()
+    {
+        selectedCustomerId = 0;
+        selectedCustomerName = "";
+        searchTerm = "";
+        searchResults = allCustomers;
+    }
+
     private void ToggleAddCustomerForm()
     {
         showAddCustomerForm = !showAddCustomerForm;
@@ -314,6 +421,7 @@
             return;
         }
 
+        isSubmitting = true;
         try
         {
             var response = await Http.PostAsJsonAsync("api/Customers", newCustomer);
@@ -331,7 +439,6 @@
                 }
                 showAddCustomerForm = false;
                 newCustomer = new();
-                StateHasChanged();
             }
             else
             {
@@ -342,6 +449,11 @@
         catch (Exception ex)
         {
             await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
         }
     }
 
@@ -354,6 +466,11 @@
             if (product != null) newUnitPrice = Math.Truncate(product.UnitPrice);
         }
         else newUnitPrice = 0;
+    }
+
+    private void AdjustQuantity(decimal delta)
+    {
+        newQuantity = Math.Max(0.1m, newQuantity + delta);
     }
 
     private async Task AddItem()
@@ -396,7 +513,6 @@
         if (selectedCustomerId == 0) { await JsRuntime.InvokeVoidAsync("alert", "لطفاً یک مشتری انتخاب کنید."); return; }
         if (items.Count == 0) { await JsRuntime.InvokeVoidAsync("alert", "لطفاً حداقل یک محصول به سفارش اضافه کنید."); return; }
 
-        // تبدیل تاریخ شمسی به میلادی
         if (!string.IsNullOrEmpty(deliveryDateString))
         {
             var normalized = deliveryDateString
@@ -423,6 +539,7 @@
             }).ToList()
         };
 
+        isSubmitting = true;
         try
         {
             var response = await Http.PostAsJsonAsync("api/Orders", payload);
@@ -432,7 +549,6 @@
             {
                 var orderId = await response.Content.ReadFromJsonAsync<int>();
 
-                // ارسال پیامک
                 if (sendSms)
                 {
                     var customer = allCustomers.FirstOrDefault(c => c.CustomerId == selectedCustomerId);
@@ -454,9 +570,9 @@
                 searchResults = allCustomers;
                 isPaid = false;
                 deliveryDate = DateTime.Now.AddDays(3);
-                StateHasChanged();
 
                 await JsRuntime.InvokeVoidAsync("alert", $"✅ سفارش شماره {orderId} با موفقیت ثبت شد!");
+                NavigationManager.NavigateTo("/orders");
             }
             else
             {
@@ -466,6 +582,11 @@
         catch (Exception ex)
         {
             await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
         }
     }
 }

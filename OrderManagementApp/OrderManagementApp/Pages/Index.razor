@@ -3,86 +3,98 @@
 @using OrderManagementApp.Helpers
 @inject HttpClient Http
 
-<div class="container-fluid px-2 px-md-3" dir="rtl">
-    <h2 class="fs-5 fs-md-4 mb-3">📊 داشبورد مدیریت</h2>
+<div class="container-fluid px-2 px-md-3 py-2" dir="rtl">
+    <!-- ===== عنوان صفحه ===== -->
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="fs-5 fs-md-4 fw-bold mb-0">📊 داشبورد مدیریت</h2>
+    </div>
 
     <!-- ===== فیلترها ===== -->
-    <div class="row g-3 mb-3">
-        <div class="col-6 col-md-3">
-            <label class="form-label small">از تاریخ</label>
-            <InputPersianDatePicker
-                Value="@filterFromDateString"
-                ValueChanged="@((string value) => { filterFromDateString = value; })"
-                Placeholder="انتخاب تاریخ"
-                CssClass="form-control form-control-sm"/>
-        </div>
-        <div class="col-6 col-md-3">
-            <label class="form-label small">تا تاریخ</label>
-            <InputPersianDatePicker
-                Value="@filterToDateString"
-                ValueChanged="@((string value) => { filterToDateString = value; })"
-                Placeholder="انتخاب تاریخ"
-                CssClass="form-control form-control-sm"/>
-        </div>
-        <div class="col-12 col-md-3 d-flex align-items-end">
-            <button class="btn btn-primary btn-sm w-100" @onclick="ApplyFilters">🔍 اعمال فیلتر</button>
+    <div class="card shadow-sm border-0 mb-3 bg-light">
+        <div class="card-body p-2 p-md-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-4 col-lg-3">
+                    <label class="form-label small fw-semibold text-secondary mb-1">از تاریخ</label>
+                    <InputPersianDatePicker
+                        Value="@filterFromDateString"
+                        ValueChanged="@((string value) => { filterFromDateString = value; })"
+                        Placeholder="انتخاب تاریخ"
+                        MinDateSetOnToday="false"
+                        CssClass="form-control form-control-sm"/>
+                </div>
+                <div class="col-6 col-md-4 col-lg-3">
+                    <label class="form-label small fw-semibold text-secondary mb-1">تا تاریخ</label>
+                    <InputPersianDatePicker
+                        Value="@filterToDateString"
+                        ValueChanged="@((string value) => { filterToDateString = value; })"
+                        Placeholder="انتخاب تاریخ"
+                        MinDateSetOnToday="false"
+                        CssClass="form-control form-control-sm"/>
+                </div>
+                <div class="col-12 col-md-4 col-lg-3 d-grid">
+                    <button class="btn btn-primary btn-sm fw-semibold" @onclick="ApplyFilters">
+                        🔍 اعمال فیلتر
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- ===== کارت‌های آماری ===== -->
+    <!-- ===== کارت‌های آماری (KPIs) ===== -->
     <div class="row g-2 mb-3">
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
-                <div class="card-body text-center p-2 p-md-3">
-                    <h5 class="mb-1">📦</h5>
-                    <h6 class="text-muted small mb-0">تعداد سفارشات</h6>
-                    <h4 class="mb-0">@totalOrders</h4>
+            <div class="card shadow-sm border-0 h-100" style="border-right: 4px solid #3498db !important;">
+                <div class="card-body p-2 p-md-3 d-flex flex-column justify-content-center text-center">
+                    <div class="fs-4 mb-1">📦</div>
+                    <span class="text-muted small fw-semibold mb-1">تعداد سفارشات</span>
+                    <h5 class="mb-0 fw-bold fs-6 fs-sm-5 text-truncate">@totalOrders</h5>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm border-0" style="border-right: 4px solid #2ecc71 !important;">
-                <div class="card-body text-center p-2 p-md-3">
-                    <h5 class="mb-1">💰</h5>
-                    <h6 class="text-muted small mb-0">مجموع فروش</h6>
-                    <h4 class="mb-0">@totalRevenue.ToString("N0")</h4>
+            <div class="card shadow-sm border-0 h-100" style="border-right: 4px solid #2ecc71 !important;">
+                <div class="card-body p-2 p-md-3 d-flex flex-column justify-content-center text-center">
+                    <div class="fs-4 mb-1">💰</div>
+                    <span class="text-muted small fw-semibold mb-1">مجموع فروش (تومان)</span>
+                    <h5 class="mb-0 fw-bold fs-6 fs-sm-5 text-success text-truncate">@totalRevenue.ToString("N0")</h5>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm border-0" style="border-right: 4px solid #9b59b6 !important;">
-                <div class="card-body text-center p-2 p-md-3">
-                    <h5 class="mb-1">👥</h5>
-                    <h6 class="text-muted small mb-0">تعداد مشتریان</h6>
-                    <h4 class="mb-0">@totalCustomers</h4>
+            <div class="card shadow-sm border-0 h-100" style="border-right: 4px solid #9b59b6 !important;">
+                <div class="card-body p-2 p-md-3 d-flex flex-column justify-content-center text-center">
+                    <div class="fs-4 mb-1">👥</div>
+                    <span class="text-muted small fw-semibold mb-1">تعداد مشتریان</span>
+                    <h5 class="mb-0 fw-bold fs-6 fs-sm-5 text-truncate">@totalCustomers</h5>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm border-0" style="border-right: 4px solid #e74c3c !important;">
-                <div class="card-body text-center p-2 p-md-3">
-                    <h5 class="mb-1">⏳</h5>
-                    <h6 class="text-muted small mb-0">پرداخت نشده</h6>
-                    <h4 class="mb-0">@pendingPayments</h4>
+            <div class="card shadow-sm border-0 h-100" style="border-right: 4px solid #e74c3c !important;">
+                <div class="card-body p-2 p-md-3 d-flex flex-column justify-content-center text-center">
+                    <div class="fs-4 mb-1">⏳</div>
+                    <span class="text-muted small fw-semibold mb-1">پرداخت نشده</span>
+                    <h5 class="mb-0 fw-bold fs-6 fs-sm-5 text-danger text-truncate">@pendingPayments</h5>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- ===== نمودارها ===== -->
     @if (chartsLoaded)
     {
         <!-- ===== نمودار فروش و سود ماهانه ===== -->
         @if (monthlyData.Any())
         {
-            <div class="card shadow-sm mb-3">
+            <div class="card shadow-sm border-0 mb-3">
                 <div class="card-header bg-white py-2">
-                    <h5 class="mb-0 fs-6">📈 فروش و سود ۶ ماه اخیر</h5>
+                    <h6 class="mb-0 fw-bold fs-6">📈 فروش و سود ۶ ماه اخیر</h6>
                 </div>
                 <div class="card-body p-2 p-md-3">
                     <ApexChart TItem="MonthlyPoint"
                                Title=""
                                Options="monthlyChartOptions"
-                               Height="320">
+                               Height="280">
                         <ApexPointSeries TItem="MonthlyPoint"
                                          Items="monthlyData"
                                          Name="فروش"
@@ -105,15 +117,15 @@
             @if (topProducts.Any())
             {
                 <div class="col-12 col-lg-6">
-                    <div class="card shadow-sm h-100">
+                    <div class="card shadow-sm border-0 h-100">
                         <div class="card-header bg-white py-2">
-                            <h5 class="mb-0 fs-6">🏆 پرفروش‌ترین محصولات (تومان)</h5>
+                            <h6 class="mb-0 fw-bold fs-6">🏆 پرفروش‌ترین محصولات (تومان)</h6>
                         </div>
                         <div class="card-body p-2 p-md-3">
                             <ApexChart TItem="TopProductPoint"
                                        Title=""
                                        Options="topProductsChartOptions"
-                                       Height="320">
+                                       Height="280">
                                 <ApexPointSeries TItem="TopProductPoint"
                                                  Items="topProducts"
                                                  Name="فروش"
@@ -130,15 +142,15 @@
             @if (expensesByCategory.Any())
             {
                 <div class="col-12 col-lg-6">
-                    <div class="card shadow-sm h-100">
+                    <div class="card shadow-sm border-0 h-100">
                         <div class="card-header bg-white py-2">
-                            <h5 class="mb-0 fs-6">💸 توزیع هزینه‌ها بر اساس دسته</h5>
+                            <h6 class="mb-0 fw-bold fs-6">💸 توزیع هزینه‌ها بر اساس دسته</h6>
                         </div>
-                        <div class="card-body p-2 p-md-3 d-flex justify-content-center">
+                        <div class="card-body p-2 p-md-3 d-flex justify-content-center align-items-center">
                             <ApexChart TItem="ExpensePoint"
                                        Title=""
                                        Options="expensesChartOptions"
-                                       Height="320">
+                                       Height="280">
                                 <ApexPointSeries TItem="ExpensePoint"
                                                  Items="expensesByCategory"
                                                  Name="هزینه"
@@ -154,47 +166,72 @@
     }
 
     <!-- ===== آخرین سفارشات ===== -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-white py-2">
-            <h5 class="mb-0 fs-6">📋 آخرین سفارشات</h5>
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold fs-6">📋 آخرین سفارشات</h6>
         </div>
-        <div class="card-body p-2">
-            <div class="table-responsive">
-                <table class="table table-hover table-sm">
-                    <thead>
-                        <tr>
-                            <th class="small">شماره</th>
-                            <th class="small">مشتری</th>
-                            <th class="small">تاریخ</th>
-                            <th class="small">مبلغ</th>
-                            <th class="small">وضعیت</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (recentOrders == null || !recentOrders.Any())
-                        {
-                            <tr><td colspan="5" class="text-center text-muted small py-2">هیچ سفارشی یافت نشد</td></tr>
-                        }
-                        else
-                        {
+        <div class="card-body p-2 p-md-3">
+            @if (recentOrders == null || !recentOrders.Any())
+            {
+                <div class="text-center text-muted small py-4">هیچ سفارشی یافت نشد</div>
+            }
+            else
+            {
+                <!-- نمای دسکتاپ (جدول) -->
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="small">شماره</th>
+                                <th class="small">مشتری</th>
+                                <th class="small">تاریخ</th>
+                                <th class="small">مبلغ (تومان)</th>
+                                <th class="small text-center">وضعیت</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             @foreach (var order in recentOrders)
                             {
                                 <tr>
-                                    <td class="small">#@order.OrderId</td>
+                                    <td class="small fw-semibold">#@order.OrderId</td>
                                     <td class="small">@order.CustomerName</td>
-                                    <td class="small">@order.OrderDate.ToPersianDate()</td>
-                                    <td class="small">@order.TotalAmount.ToString("N0")</td>
-                                    <td>
-                                        <span class="badge @(order.IsPaid ? "bg-success" : "bg-danger") small">
+                                    <td class="small text-muted">@order.OrderDate.ToPersianDate()</td>
+                                    <td class="small fw-bold">@order.TotalAmount.ToString("N0")</td>
+                                    <td class="text-center">
+                                        <span class="badge @(order.IsPaid ? "bg-success" : "bg-danger") px-2 py-1">
                                             @(order.IsPaid ? "پرداخت شده" : "پرداخت نشده")
                                         </span>
                                     </td>
                                 </tr>
                             }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- نمای موبایل (کارت‌های فشرده) -->
+                <div class="d-block d-md-none">
+                    <div class="d-flex flex-column gap-2">
+                        @foreach (var order in recentOrders)
+                        {
+                            <div class="p-2 border rounded bg-white shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-bold small text-primary">#@order.OrderId</span>
+                                    <span class="badge @(order.IsPaid ? "bg-success" : "bg-danger")">
+                                        @(order.IsPaid ? "پرداخت شده" : "پرداخت نشده")
+                                    </span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-semibold small text-dark">@order.CustomerName</span>
+                                    <span class="fw-bold small text-dark">@order.TotalAmount.ToString("N0") تومان</span>
+                                </div>
+                                <div class="text-start">
+                                    <small class="text-muted" style="font-size: 0.75rem;">📅 @order.OrderDate.ToPersianDate()</small>
+                                </div>
+                            </div>
                         }
-                    </tbody>
-                </table>
-            </div>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 </div>
@@ -220,11 +257,11 @@
     // ===== تنظیمات نمودارها =====
     private ApexChartOptions<MonthlyPoint> monthlyChartOptions = new()
     {
-        Chart = new Chart { FontFamily = "Tahoma, sans-serif" },
+        Chart = new Chart { FontFamily = "IRANSans, Vazir, Tahoma, sans-serif" },
         Colors = new List<string> { "#3498db", "#2ecc71" },
         PlotOptions = new PlotOptions
         {
-            Bar = new PlotOptionsBar { ColumnWidth = "55%", BorderRadius = 4 }
+            Bar = new PlotOptionsBar { ColumnWidth = "50%", BorderRadius = 4 }
         },
         Legend = new Legend { Position = LegendPosition.Top, HorizontalAlign = ApexCharts.Align.Center },
         DataLabels = new DataLabels { Enabled = false },
@@ -249,7 +286,7 @@
 
     private ApexChartOptions<TopProductPoint> topProductsChartOptions = new()
     {
-        Chart = new Chart { FontFamily = "Tahoma, sans-serif" },
+        Chart = new Chart { FontFamily = "IRANSans, Vazir, Tahoma, sans-serif" },
         Colors = new List<string> { "#6C63FF" },
         PlotOptions = new PlotOptions
         {
@@ -264,7 +301,7 @@
         Legend = new Legend { Show = false },
         Xaxis = new XAxis
         {
-            Labels = new XAxisLabels { Rotate = -45, Style = new AxisLabelStyle { FontSize = "11px" } }
+            Labels = new XAxisLabels { Style = new AxisLabelStyle { FontSize = "10px" } }
         },
         Tooltip = new Tooltip
         {
@@ -277,7 +314,7 @@
 
     private ApexChartOptions<ExpensePoint> expensesChartOptions = new()
     {
-        Chart = new Chart { FontFamily = "Tahoma, sans-serif" },
+        Chart = new Chart { FontFamily = "IRANSans, Vazir, Tahoma, sans-serif" },
         Colors = new List<string> { "#e74c3c", "#e67e22", "#f1c40f", "#9b59b6", "#3498db", "#1abc9c", "#95a5a6" },
         Labels = new List<string>(),
         Legend = new Legend { Position = LegendPosition.Bottom, HorizontalAlign = ApexCharts.Align.Center },
