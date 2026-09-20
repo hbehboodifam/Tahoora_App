@@ -470,5 +470,168 @@ public class ReportsController : ControllerBase
             hasData = orderItems.Any() || expenses.Any()
         });
     }
+    
+        // ============================================================
+    // ۶. گزارش بدهی‌ها
+    // ============================================================
+    [HttpGet("debts")]
+    public async Task<IActionResult> GetDebtReport(
+        [FromQuery] decimal? minAmount)
+    {
+        // ===== همه‌ی سفارشات پرداخت‌نشده =====
+        var unpaidOrders = await _context.Orders
+            .Include(o => o.Customer)
+            .Where(o => !o.IsPaid)
+            .ToListAsync();
 
+        if (!unpaidOrders.Any())
+        {
+            return Ok(new
+            {
+                debtors = new List<object>(),
+                totalDebt = 0m,
+                debtorCount = 0,
+                averageDebt = 0m,
+                hasData = false
+            });
+        }
+
+        // ===== آخرین سفارش هر مشتری (برای context) =====
+        var lastOrderByCustomer = await _context.Orders
+            .GroupBy(o => o.CustomerId)
+            .Select(g => new { CustomerId = g.Key, LastOrderDate = g.Max(o => o.OrderDate) })
+            .ToDictionaryAsync(x => x.CustomerId, x => x.LastOrderDate);
+
+        // ===== گروه‌بندی بر اساس مشتری =====
+        var debtors = unpaidOrders
+            .GroupBy(o => new
+            {
+                o.CustomerId,
+                CustomerName = o.Customer != null ? o.Customer.FullName : "نامشخص",
+                Phone = o.Customer != null ? o.Customer.Phone : null
+            })
+            .Select(g =>
+            {
+                var oldestDate = g.Min(o => o.OrderDate);
+                var daysSince = (int)(DateTime.Now - oldestDate).TotalDays;
+
+                string ageCategory = daysSince <= 30 ? "Normal"
+                                   : daysSince <= 60 ? "Warning"
+                                   : "Critical";
+
+                return new
+                {
+                    g.Key.CustomerId,
+                    g.Key.CustomerName,
+                    g.Key.Phone,
+                    totalDebt = g.Sum(o => o.TotalAmount),
+                    unpaidOrderCount = g.Count(),
+                    oldestOrderDate = oldestDate,
+                    lastOrderDate = lastOrderByCustomer.ContainsKey(g.Key.CustomerId)
+                        ? lastOrderByCustomer[g.Key.CustomerId]
+                        : (DateTime?)null,
+                    daysSinceOldest = daysSince,
+                    ageCategory
+                };
+            })
+            .OrderByDescending(x => x.totalDebt)
+            .ToList();
+
+        // ===== فیلتر حداقل مبلغ =====
+        if (minAmount.HasValue && minAmount.Value > 0)
+        {
+            debtors = debtors.Where(d => d.totalDebt >= minAmount.Value).ToList();
+        }
+
+        var totalDebt = debtors.Sum(d => d.totalDebt);
+        var debtorCount = debtors.Count;
+        var averageDebt = debtorCount > 0 ? totalDebt / debtorCount : 0m;
+
+        return Ok(new
+        {
+            debtors,
+            totalDebt,
+            debtorCount,
+            averageDebt,
+            hasData = debtors.Any()
+        });
+    }
+
+    // ============================================================
+    // ۷. ارسال پیامک یادآوری بدهی
+    // ============================================================
+    
+        // ============================================================
+    // ۷. ارسال پیامک یادآوری بدهی
+    // ============================================================
+    [HttpPost("send-debt-reminder/{customerId}")]
+    public async Task<IActionResult> SendDebtReminder(int customerId, [FromBody] SendDebtReminderDto? dto)
+    {
+        try
+        {
+            var customer = await _context.Customers.FindAsync(customerId);
+            if (customer == null) return NotFound("مشتری یافت نشد.");
+
+            if (string.IsNullOrEmpty(customer.Phone))
+                return BadRequest("شماره تلفن مشتری ثبت نشده است.");
+
+            // ===== محاسبه‌ی بدهی =====
+            var unpaidOrders = await _context.Orders
+                .Where(o => o.CustomerId == customerId && !o.IsPaid)
+                .ToListAsync();
+
+            if (!unpaidOrders.Any())
+                return BadRequest("این مشتری بدهی پرداخت‌نشده ندارد.");
+
+            var totalDebt = unpaidOrders.Sum(o => o.TotalAmount);
+
+            // ===== متن پیام: اگه کاربر فرستاده از اون، وگرنه پیش‌فرض =====
+            string message;
+            if (!string.IsNullOrWhiteSpace(dto?.Message))
+            {
+                message = dto.Message;
+            }
+            else
+            {
+                message = $"سلام {customer.FullName} عزیز،\n\n" +
+                          $"مبلغ {totalDebt:N0} تومان از سفارشات قبلی شما پرداخت نشده است.\n" +
+                          $"لطفاً در اسرع وقت نسبت به تسویه اقدام فرمایید.\n\n" +
+                          $"با تشکر\n" +
+                          $"تیم طهورا پروتئین\n" +
+                          $"https://ble.ir/ProteinTahoora";
+            }
+
+            // ===== ارسال =====
+            var result = await _smsService.SendSms(customer.Phone, message);
+
+            if (result.Success)
+            {
+                _context.CustomerSmsLogs.Add(new Models.CustomerSmsLog
+                {
+                    CustomerId = customerId,
+                    SentDate = DateTime.Now,
+                    MessageText = message,
+                    SmsType = "DebtReminder"
+                });
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    message = "پیامک یادآوری ارسال شد.",
+                    amount = totalDebt
+                });
+            }
+
+            return StatusCode(500, $"خطا در ارسال: {result.ErrorMessage}");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"خطا: {ex.Message}");
+        }
+    }
+}
+
+public class SendDebtReminderDto
+{
+    public string? Message { get; set; }
 }

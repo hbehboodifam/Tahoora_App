@@ -1,0 +1,320 @@
+﻿@page "/reports/debts"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+@inject NavigationManager Nav
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">💰 گزارش بدهی‌ها</h2>
+
+    @if (isLoading)
+    {
+    <div class="text-center text-muted mt-5">
+        <p>⏳ در حال بارگذاری...</p>
+    </div>
+    }
+    else if (report == null || !report.HasData)
+    {
+    <div class="alert alert-success mt-3">
+        ✅ هیچ بدهی پرداخت‌نشده‌ای وجود ندارد.
+    </div>
+    }
+    else
+    {
+    <!-- ===== کارت‌های خلاصه ===== -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">👥</h5>
+                    <h6 class="text-muted small mb-0">تعداد بدهکاران</h6>
+                    <h4 class="mb-0">@report.DebtorCount</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #e74c3c !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">💰</h5>
+                    <h6 class="text-muted small mb-0">جمع کل بدهی</h6>
+                    <h4 class="mb-0 text-danger">@report.TotalDebt.ToString("N0")</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #f39c12 !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">📊</h5>
+                    <h6 class="text-muted small mb-0">میانگین بدهی</h6>
+                    <h4 class="mb-0">@report.AverageDebt.ToString("N0")</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm border-0" style="border-right: 4px solid #9b59b6 !important;">
+                <div class="card-body text-center p-2 p-md-3">
+                    <h5 class="mb-1">🏆</h5>
+                    <h6 class="text-muted small mb-0">بیشترین بدهی</h6>
+                    <h5 class="mb-0">@TopDebtorAmount.ToString("N0")</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== فیلتر + خروجی ===== -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body p-2 p-md-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-4">
+                    <label class="form-label small">حداقل مبلغ بدهی (تومان)</label>
+                    <input type="number" class="form-control form-control-sm"
+                           @bind="minAmount" placeholder="مثلاً 1000000" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <button class="btn btn-primary btn-sm w-100" @onclick="LoadReport">
+                        🔍 اعمال
+                    </button>
+                </div>
+                <div class="col-6 col-md-2">
+                    <button class="btn btn-outline-secondary btn-sm w-100" @onclick="ClearFilter">
+                        🧹 پاک کردن
+                    </button>
+                </div>
+                <div class="col-12 col-md-4 text-md-end">
+                    <button class="btn btn-success btn-sm" @onclick="ExportToCsv">
+                        📤 خروجی CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== جدول بدهکاران ===== -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white py-2">
+            <h5 class="mb-0 fs-6">📋 لیست بدهکاران (مرتب بر اساس مبلغ)</h5>
+        </div>
+        <div class="card-body p-2">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle">
+                    <thead>
+                    <tr>
+                        <th class="small">#</th>
+                        <th class="small">نام مشتری</th>
+                        <th class="small">تلفن</th>
+                        <th class="small">مبلغ بدهی (تومان)</th>
+                        <th class="small">تعداد سفارش</th>
+                        <th class="small">قدیمی‌ترین سفارش</th>
+                        <th class="small">سن بدهی</th>
+                        <th class="small">عملیات</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @{ var i = 0; }
+                    @foreach (var d in report.Debtors)
+                    {
+                    i++;
+                    <tr>
+                        <td class="small">@i</td>
+                        <td class="small fw-bold">@d.CustomerName</td>
+                        <td class="small">
+                            @if (!string.IsNullOrEmpty(d.Phone))
+                            {
+                            <span dir="ltr">@d.Phone</span>
+                            }
+                            else
+                            {
+                            <span class="text-muted small">—</span>
+                            }
+                        </td>
+                        <td class="small fw-bold text-danger">@d.TotalDebt.ToString("N0")</td>
+                        <td class="small">@d.UnpaidOrderCount</td>
+                        <td class="small">@d.OldestOrderDate.ToPersianDate()</td>
+                        <td class="small">
+                                        <span class="badge @GetAgeBadgeClass(d.AgeCategory)">
+                                            @d.DaysSinceOldest روز
+                                        </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-info" title="پروفایل"
+                                    @onclick="() => GoToProfile(d.CustomerId)">👤</button>
+                            @if (!string.IsNullOrEmpty(d.Phone))
+                            {
+                            <button class="btn btn-sm btn-warning" title="پیامک یادآوری"
+                                    @onclick="() => SendReminder(d)"
+                                    disabled="@sendingCustomerId.HasValue">
+                                @if (sendingCustomerId == d.CustomerId)
+                                {
+                                <span>⏳</span>
+                                }
+                                else
+                                {
+                                <span>📱</span>
+                                }
+                            </button>
+                            }
+                            else
+                            {
+                            <button class="btn btn-sm btn-secondary" title="شماره تلفن ثبت نشده" disabled>📱</button>
+                            }
+                        </td>
+                    </tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                    <tr class="table-info fw-bold">
+                        <td colspan="3" class="small">جمع کل</td>
+                        <td class="small text-danger">@report.TotalDebt.ToString("N0")</td>
+                        <td colspan="4"></td>
+                    </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    }
+</div>
+
+@code {
+private DebtReportDto? report;
+private bool isLoading = true;
+private decimal? minAmount;
+private int? sendingCustomerId;
+
+private decimal TopDebtorAmount =>
+report?.Debtors?.FirstOrDefault()?.TotalDebt ?? 0;
+
+protected override async Task OnInitializedAsync() => await LoadReport();
+
+private async Task LoadReport()
+{
+isLoading = true;
+StateHasChanged();
+
+try
+{
+var url = "api/reports/debts";
+if (minAmount.HasValue && minAmount.Value > 0)
+url += $"?minAmount={minAmount.Value}";
+
+report = await Http.GetFromJsonAsync<DebtReportDto>(url);
+}
+catch (Exception ex)
+{
+await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+report = null;
+}
+finally
+{
+isLoading = false;
+StateHasChanged();
+}
+}
+
+private async Task ClearFilter()
+{
+minAmount = null;
+await LoadReport();
+}
+
+private void GoToProfile(int customerId)
+{
+Nav.NavigateTo($"/customers/{customerId}/profile");
+}
+
+private async Task SendReminder(DebtorDto d)
+{
+var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+$"ارسال یادآوری بدهی {d.TotalDebt:N0} تومان به {d.CustomerName}؟");
+if (!confirmed) return;
+
+sendingCustomerId = d.CustomerId;
+StateHasChanged();
+
+try
+{
+var res = await Http.PostAsync($"api/reports/send-debt-reminder/{d.CustomerId}", null);
+if (res.IsSuccessStatusCode)
+{
+await JsRuntime.InvokeVoidAsync("alert", "✅ پیامک یادآوری ارسال شد.");
+}
+else
+{
+var msg = await res.Content.ReadAsStringAsync();
+await JsRuntime.InvokeVoidAsync("alert", $"❌ {msg}");
+}
+}
+catch (Exception ex)
+{
+await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+}
+finally
+{
+sendingCustomerId = null;
+StateHasChanged();
+}
+}
+
+private string GetAgeBadgeClass(string category) => category switch
+{
+"Normal" => "bg-success",
+"Warning" => "bg-warning text-dark",
+"Critical" => "bg-danger",
+_ => "bg-secondary"
+};
+
+private async Task ExportToCsv()
+{
+if (report == null || !report.HasData)
+{
+await JsRuntime.InvokeVoidAsync("alert", "داده‌ای برای خروجی وجود ندارد.");
+return;
+}
+
+var sb = new System.Text.StringBuilder();
+sb.AppendLine("گزارش بدهی‌ها");
+sb.AppendLine($"تاریخ تهیه: {DateTime.Now.ToPersianDate()}");
+if (minAmount.HasValue && minAmount.Value > 0)
+sb.AppendLine($"فیلتر: حداقل {minAmount.Value:N0} تومان");
+sb.AppendLine();
+
+sb.AppendLine("نام مشتری,تلفن,مبلغ بدهی (تومان),تعداد سفارش,قدیمی‌ترین سفارش,سن بدهی (روز)");
+foreach (var d in report.Debtors)
+{
+sb.AppendLine($"{d.CustomerName},{d.Phone},{d.TotalDebt:N0},{d.UnpaidOrderCount},{d.OldestOrderDate.ToPersianDate()},{d.DaysSinceOldest}");
+}
+sb.AppendLine();
+sb.AppendLine($"جمع کل,,{report.TotalDebt:N0},,, ");
+
+var csv = sb.ToString();
+var bytes = System.Text.Encoding.UTF8.GetPreamble()
+.Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray();
+var base64 = Convert.ToBase64String(bytes);
+var fileName = $"DebtsReport_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+await JsRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+}
+
+// ===== DTO ها =====
+public class DebtReportDto
+{
+public List<DebtorDto> Debtors { get; set; } = new();
+public decimal TotalDebt { get; set; }
+public int DebtorCount { get; set; }
+public decimal AverageDebt { get; set; }
+public bool HasData { get; set; }
+}
+
+public class DebtorDto
+{
+public int CustomerId { get; set; }
+public string CustomerName { get; set; } = "";
+public string? Phone { get; set; }
+public decimal TotalDebt { get; set; }
+public int UnpaidOrderCount { get; set; }
+public DateTime OldestOrderDate { get; set; }
+public DateTime? LastOrderDate { get; set; }
+public int DaysSinceOldest { get; set; }
+public string AgeCategory { get; set; } = "Normal";
+}
+}

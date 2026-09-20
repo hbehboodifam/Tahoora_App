@@ -1,0 +1,386 @@
+﻿@page "/shipping"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+@inject NavigationManager Nav
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <h2 class="fs-5 fs-md-4 mb-3">🚚 بسته‌بندی و ارسال</h2>
+
+    <!-- ===== فیلتر تاریخ ===== -->
+    <PersianDateRangeFilter
+        FromLabel="از تاریخ تحویل"
+        ToLabel="تا تاریخ تحویل"
+        @bind-FromDate="fromDate"
+        @bind-ToDate="toDate"
+        ShowApplyButton="true"
+        ShowExportButton="false"
+        OnApply="LoadReport" />
+
+    <!-- ===== چک‌باکس فقط ارسال‌نشده‌ها ===== -->
+    <div class="form-check mt-2 mb-3">
+        <input class="form-check-input" type="checkbox" id="onlyUnshipped"
+               @bind="onlyUnshipped" @bind:after="LoadReport" />
+        <label class="form-check-label small" for="onlyUnshipped">
+            فقط سفارشات ارسال‌نشده
+        </label>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center text-muted mt-5">
+            <p>⏳ در حال بارگذاری...</p>
+        </div>
+    }
+    else if (report == null || !report.Summary.HasData)
+    {
+        <div class="alert alert-success mt-3">
+            ✅ در این بازه سفارشی برای ارسال وجود ندارد.
+        </div>
+    }
+    else
+    {
+        <!-- ===== کارت‌های خلاصه ===== -->
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">📦</h5>
+                        <h6 class="text-muted small mb-0">تعداد سفارش</h6>
+                        <h4 class="mb-0">@report.Summary.TotalOrders</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #f39c12 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">⏳</h5>
+                        <h6 class="text-muted small mb-0">ارسال‌نشده</h6>
+                        <h4 class="mb-0 text-warning">@report.Summary.UnshippedCount</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #2ecc71 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💰</h5>
+                        <h6 class="text-muted small mb-0">جمع مبلغ</h6>
+                        <h4 class="mb-0">@report.Summary.TotalAmount.ToString("N0")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid @(report.Summary.UnpaidAmount > 0 ? "#e74c3c" : "#95a5a6") !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💳</h5>
+                        <h6 class="text-muted small mb-0">مبلغ پرداخت‌نشده</h6>
+                        <h4 class="mb-0 @(report.Summary.UnpaidAmount > 0 ? "text-danger" : "")">
+                            @report.Summary.UnpaidAmount.ToString("N0")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== لیست بسته‌بندی ===== -->
+        @if (report.ShoppingList.Any())
+        {
+            <div class="card shadow-sm mb-3" style="border-right: 4px solid #6C63FF !important;">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fs-6">📋 لیست بسته‌بندی</h5>
+                    <small class="text-muted">@report.ShoppingList.Count محصول</small>
+                </div>
+                <div class="card-body p-2">
+                    <div class="row g-2">
+                        @foreach (var item in report.ShoppingList)
+                        {
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <div class="border rounded p-2 d-flex justify-content-between align-items-center bg-light">
+                                    <div>
+                                        <div class="small fw-bold">@item.ProductName</div>
+                                        <div class="text-muted small">@item.OrderCount سفارش</div>
+                                    </div>
+                                    <div class="text-start">
+                                        <span class="badge bg-primary fs-6">@item.TotalQuantity.ToString("N2")</span>
+                                        <span class="small text-muted ms-1">@item.Unit</span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ===== جدول سفارشات ===== -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-2">
+                <h5 class="mb-0 fs-6">📋 لیست سفارشات</h5>
+            </div>
+            <div class="card-body p-2">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle table-cards">
+                        <thead>
+                            <tr>
+                                <th class="small">مشتری</th>
+                                <th class="small d-none d-md-table-cell">تلفن</th>
+                                <th class="small">اقلام</th>
+                                <th class="small">مبلغ (تومان)</th>
+                                <th class="small">پرداخت</th>
+                                <th class="small">وضعیت ارسال</th>
+                                <th class="small">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var o in report.Orders)
+                            {
+                                <tr class="@(o.IsShipped ? "table-success" : "")">
+                                    <td class="small fw-bold td-title" data-label="مشتری">
+                                        @o.CustomerName
+                                        <div class="text-muted fw-normal small">#@o.OrderId</div>
+                                    </td>
+                                    <td class="small d-none d-md-table-cell" data-label="تلفن">
+                                        @if (!string.IsNullOrEmpty(o.CustomerPhone))
+                                        {
+                                            <span dir="ltr">@o.CustomerPhone</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td class="small" data-label="اقلام">
+                                        @foreach (var it in o.Items.Take(2))
+                                        {
+                                            <span class="badge bg-light text-dark me-1 mb-1">
+                                                @it.ProductName × @it.Quantity.ToString("N2")
+                                            </span>
+                                        }
+                                        @if (o.Items.Count > 2)
+                                        {
+                                            <span class="badge bg-secondary">+@(o.Items.Count - 2)</span>
+                                        }
+                                    </td>
+                                    <td class="small fw-bold" data-label="مبلغ">
+                                        @o.TotalAmount.ToString("N0")
+                                    </td>
+                                    <td class="small" data-label="پرداخت">
+                                        @if (o.IsPaid)
+                                        {
+                                            <span class="badge bg-success">✓ پرداخت شده</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">پرداخت نشده</span>
+                                        }
+                                    </td>
+                                    <td class="small" data-label="وضعیت ارسال">
+                                        @if (o.IsShipped)
+                                        {
+                                            <span class="badge bg-success">✓ ارسال شد</span>
+                                            @if (o.ShippedDate.HasValue)
+                                            {
+                                                <div class="text-muted small mt-1">@o.ShippedDate.Value.ToPersianDate()</div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">در انتظار</span>
+                                        }
+                                    </td>
+                                    <td class="td-actions" data-label="عملیات">
+                                        @if (!o.IsShipped)
+                                        {
+                                            <button class="btn btn-sm btn-success" title="ارسال شد"
+                                                    @onclick="() => MarkShipped(o)"
+                                                    disabled="@isSaving">
+                                                ✅ ارسال شد
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary" title="لغو ارسال"
+                                                    @onclick="() => UnmarkShipped(o)"
+                                                    disabled="@isSaving">
+                                                ↩️ لغو
+                                            </button>
+                                        }
+                                        <button class="btn btn-sm btn-info" title="پروفایل مشتری"
+                                                @onclick="() => GoToProfile(o.CustomerId)">👤</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private ShippingReportDto? report;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool onlyUnshipped = true;
+
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fromDate = DateTime.Today;
+        toDate = DateTime.Today;
+        await LoadReport();
+    }
+
+    private async Task LoadReport()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var url = "api/shipping/pending";
+            var qs = new List<string>();
+            if (fromDate.HasValue) qs.Add($"from={fromDate.Value:yyyy-MM-dd}");
+            if (toDate.HasValue)   qs.Add($"to={toDate.Value:yyyy-MM-dd}");
+            qs.Add($"includeShipped={(!onlyUnshipped).ToString().ToLower()}");
+            url += "?" + string.Join("&", qs);
+
+            report = await Http.GetFromJsonAsync<ShippingReportDto>(url);
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+            report = null;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task MarkShipped(ShippingOrderDto o)
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+            $"آیا سفارش #{o.OrderId} ({o.CustomerName}) ارسال شد؟");
+        if (!confirmed) return;
+
+        isSaving = true;
+        try
+        {
+            var res = await Http.PostAsync($"api/shipping/mark-shipped/{o.OrderId}", null);
+            if (res.IsSuccessStatusCode)
+            {
+                await LoadReport();
+            }
+            else
+            {
+                var msg = await res.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ {msg}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task UnmarkShipped(ShippingOrderDto o)
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+            $"لغو علامت ارسال سفارش #{o.OrderId}؟");
+        if (!confirmed) return;
+
+        isSaving = true;
+        try
+        {
+            var res = await Http.PostAsync($"api/shipping/unmark-shipped/{o.OrderId}", null);
+            if (res.IsSuccessStatusCode)
+            {
+                await LoadReport();
+            }
+            else
+            {
+                var msg = await res.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ {msg}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoToProfile(int customerId)
+    {
+        Nav.NavigateTo($"/customers/{customerId}/profile");
+    }
+
+    // ===== DTO ها =====
+    public class ShippingReportDto
+    {
+        public DateTime From { get; set; }
+        public DateTime To { get; set; }
+        public List<ShippingOrderDto> Orders { get; set; } = new();
+        public List<ShoppingItemDto> ShoppingList { get; set; } = new();
+        public SummaryDto Summary { get; set; } = new();
+    }
+
+    public class SummaryDto
+    {
+        public int TotalOrders { get; set; }
+        public int UnshippedCount { get; set; }
+        public int ShippedCount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal UnpaidAmount { get; set; }
+        public int TotalItems { get; set; }
+        public bool HasData { get; set; }
+    }
+
+    public class ShippingOrderDto
+    {
+        public int OrderId { get; set; }
+        public int CustomerId { get; set; }
+        public string CustomerName { get; set; } = "";
+        public string? CustomerPhone { get; set; }
+        public DateTime DeliveryDate { get; set; }
+        public DateTime OrderDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public bool IsPaid { get; set; }
+        public bool IsShipped { get; set; }
+        public DateTime? ShippedDate { get; set; }
+        public string? Notes { get; set; }
+        public int ItemCount { get; set; }
+        public List<OrderItemDto> Items { get; set; } = new();
+    }
+
+    public class OrderItemDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal Total { get; set; }
+    }
+
+    public class ShoppingItemDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public decimal TotalQuantity { get; set; }
+        public int OrderCount { get; set; }
+    }
+}

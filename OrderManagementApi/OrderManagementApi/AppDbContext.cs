@@ -68,6 +68,10 @@ namespace OrderManagementApi
                 .Property(o => o.OrderSource)
                 .HasMaxLength(20)
                 .HasDefaultValue("Regular");
+            
+            modelBuilder.Entity<Order>()
+                .Property(o => o.IsShipped)
+                .HasDefaultValue(false);
 
             // ===== ProductStock =====
             modelBuilder.Entity<ProductStock>()

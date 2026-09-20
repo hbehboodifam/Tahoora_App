@@ -25,6 +25,12 @@ namespace OrderManagementApi.Models
         /// <summary>منبع سفارش: Regular / Surplus / Channel</summary>
         [MaxLength(20)]
         public string OrderSource { get; set; } = "Regular";
+        
+        /// <summary>ارسال شده یا نه</summary>
+        public bool IsShipped { get; set; } = false;
+
+        /// <summary>تاریخ ارسال</summary>
+        public DateTime? ShippedDate { get; set; }
 
         // Navigation Properties (بدون [Required])
         [ForeignKey("CustomerId")]
