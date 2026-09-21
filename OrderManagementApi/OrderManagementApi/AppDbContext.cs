@@ -18,6 +18,8 @@ namespace OrderManagementApi
         public DbSet<Expense> Expenses { get; set; }
         public DbSet<ExpenseCategory> ExpenseCategories { get; set; }
         public DbSet<CustomerNote> CustomerNotes { get; set; }
+        
+        public DbSet<BackupLog> BackupLogs { get; set; }
 
         // ===== جدید: انبار و تولید =====
         public DbSet<ProductStock> ProductStocks { get; set; }
@@ -111,6 +113,9 @@ namespace OrderManagementApi
                 .WithMany()
                 .HasForeignKey(w => w.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<BackupLog>()
+                .Property(b => b.FilePath)
+                .HasMaxLength(500);
 
             base.OnModelCreating(modelBuilder);
         }

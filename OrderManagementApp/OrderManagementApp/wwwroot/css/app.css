@@ -147,3 +147,93 @@ body {
         text-align: center;
     }
 }
+
+/* ==================================================================== */
+/* الگوی Responsive Table → Card (زیر 768px)                          */
+/* استفاده: <table class="table table-cards">                          */
+/* و روی هر <td>: <td data-label="عنوان ستون">مقدار</td>               */
+/* ==================================================================== */
+
+@media (max-width: 768px) {
+    .table-cards thead {
+        display: none;
+    }
+
+    .table-cards,
+    .table-cards tbody,
+    .table-cards tr,
+    .table-cards td {
+        display: block;
+        width: 100%;
+    }
+
+    .table-cards tr {
+        margin-bottom: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        padding: 12px;
+    }
+
+    .table-cards tr:last-child {
+        margin-bottom: 0;
+    }
+
+    .table-cards td {
+        border: none !important;
+        padding: 6px 0 !important;
+        position: relative;
+        padding-right: 45% !important;
+        text-align: right;
+        min-height: 30px;
+    }
+
+    .table-cards td::before {
+        content: attr(data-label);
+        position: absolute;
+        right: 0;
+        top: 6px;
+        width: 42%;
+        padding-left: 10px;
+        font-weight: 600;
+        color: #64748b;
+        font-size: 0.8rem;
+        text-align: right;
+    }
+
+    /* ستون اول به‌عنوان تیتر کارت */
+    .table-cards td.td-title {
+        padding-right: 0 !important;
+        text-align: right;
+        border-bottom: 1px solid #f1f5f9 !important;
+        padding-bottom: 10px !important;
+        margin-bottom: 8px;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1e293b;
+    }
+
+    .table-cards td.td-title::before {
+        display: none;
+    }
+
+    /* ستون عملیات تمام‌عرض در پایین کارت */
+    .table-cards td.td-actions {
+        padding-right: 0 !important;
+        text-align: center;
+        margin-top: 10px;
+        border-top: 1px solid #f1f5f9 !important;
+        padding-top: 10px !important;
+    }
+
+    .table-cards td.td-actions::before {
+        display: none;
+    }
+
+    /* مخفی کردن ستون‌هایی که روی موبایل لازم نیستن */
+    .table-cards td.td-hide-mobile,
+    .table-cards th.td-hide-mobile {
+        display: none;
+    }
+}

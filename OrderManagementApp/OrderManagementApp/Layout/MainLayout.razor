@@ -1,5 +1,7 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 @inject NavigationManager NavManager
+@inject HttpClient Http
 
 <div class="page">
     <!-- ===== هدر موبایل (همبرگر) ===== -->
@@ -46,6 +48,9 @@
                     <NavLink class="nav-link text-white" href="/orders" Match="NavLinkMatch.All" @onclick="CloseSidebar">
                         <span>📋 سفارشات</span>
                     </NavLink>
+                    <NavLink class="nav-link text-white" href="/shipping" @onclick="CloseSidebar">
+                        <span>🚚 بسته‌بندی و ارسال</span>
+                    </NavLink>
                 </div>
             }
         </div>
@@ -71,6 +76,9 @@
                     <NavLink class="nav-link text-white" href="/reports/profit-loss" @onclick="CloseSidebar">
                         <span>💹 گزارش سود و زیان</span>
                     </NavLink>
+                    <NavLink class="nav-link text-white" href="/reports/debts" @onclick="CloseSidebar">
+                        <span>💰 گزارش بدهی‌ها</span>
+                    </NavLink>
                 </div>
             }
         </div>
@@ -92,26 +100,38 @@
                     </NavLink>
                 </div>
             }
-            
-            <!-- ===== گروه: انبار و تولید ===== -->
-            <div class="nav-group">
-                <button class="nav-group-toggle" @onclick='() => ToggleGroup("inventory")'>
-                    <span>📦 انبار و تولید</span>
-                    <span class="arrow @(openGroups["inventory"] ? "open" : "")">▾</span>
-                </button>
-                @if (openGroups["inventory"])
-                {
-                    <div class="nav-group-items">
-                        <NavLink class="nav-link text-white" href="/production" @onclick="CloseSidebar">
-                            <span>🏭 برنامه‌ی تولید</span>
-                        </NavLink>
-                        <NavLink class="nav-link text-white" href="/inventory" @onclick="CloseSidebar">
-                            <span>📦 موجودی مازاد</span>
-                        </NavLink>
-                    </div>
-                }
-            </div>
         </div>
+
+        <!-- ===== گروه: انبار و تولید ===== -->
+        <div class="nav-group">
+            <button class="nav-group-toggle" @onclick='() => ToggleGroup("inventory")'>
+                <span>📦 انبار و تولید</span>
+                <span class="arrow @(openGroups["inventory"] ? "open" : "")">▾</span>
+            </button>
+            @if (openGroups["inventory"])
+            {
+                <div class="nav-group-items">
+                    <NavLink class="nav-link text-white" href="/production" @onclick="CloseSidebar">
+                        <span>🏭 برنامه‌ی تولید</span>
+                    </NavLink>
+                    <NavLink class="nav-link text-white" href="/inventory" @onclick="CloseSidebar">
+                        <span>📦 موجودی مازاد</span>
+                    </NavLink>
+                </div>
+            }
+        </div>
+
+        <!-- ===== پشتیبان‌گیری ===== -->
+        <NavLink class="nav-link text-white" href="/settings/backup" @onclick="CloseSidebar">
+            <span>
+                💾 پشتیبان‌گیری
+                @if (backupHasProblem)
+                {
+                    <span class="badge bg-danger ms-1" title="مشکل در بکاپ">!</span>
+                }
+            </span>
+        </NavLink>
+
     </div>
 
     <!-- ===== محتوای اصلی ===== -->
@@ -329,6 +349,10 @@
         ["inventory"]  = false
     };
 
+    // ===== بکاپ =====
+    private bool backupHasProblem = false;
+    private System.Threading.Timer? _backupCheckTimer;
+
     protected override void OnInitialized()
     {
         // گروه مربوط به صفحه‌ی فعلی رو خودکار باز کن
@@ -336,7 +360,8 @@
 
         if (uri.StartsWith("products") ||
             uri.StartsWith("customers") ||
-            uri.StartsWith("orders"))
+            uri.StartsWith("orders") ||
+            uri.StartsWith("shipping"))
         {
             openGroups["operations"] = true;
         }
@@ -354,11 +379,53 @@
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ = CheckBackupStatusAsync();
+
+            _backupCheckTimer = new System.Threading.Timer(async _ =>
+            {
+                await InvokeAsync(CheckBackupStatusAsync);
+            }, null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
+        }
+    }
+
     private void ToggleSidebar() => isSidebarOpen = !isSidebarOpen;
     private void CloseSidebar() => isSidebarOpen = false;
 
     private void ToggleGroup(string key)
     {
         openGroups[key] = !openGroups[key];
+    }
+
+    private async Task CheckBackupStatusAsync()
+    {
+        try
+        {
+            var status = await Http.GetFromJsonAsync<BackupStatus>("api/backup/status");
+            var hasProblem = status == null || !status.IsHealthy;
+
+            if (hasProblem != backupHasProblem)
+            {
+                backupHasProblem = hasProblem;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // اگه API در دسترس نبود، بج رو نشون نده
+        }
+    }
+
+    public void Dispose()
+    {
+        _backupCheckTimer?.Dispose();
+    }
+
+    public class BackupStatus
+    {
+        public bool IsHealthy { get; set; }
     }
 }

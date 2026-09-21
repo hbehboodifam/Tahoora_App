@@ -1,0 +1,357 @@
+﻿@page "/settings/backup"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+@inject NavigationManager Nav
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h2 class="fs-5 fs-md-4 mb-0">💾 پشتیبان‌گیری</h2>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="RefreshAll">🔄 رفرش</button>
+    </div>
+
+    <!-- ===== هشدار OneDrive ===== -->
+    <div class="alert alert-warning py-2 small mb-3">
+        <strong>⚠️ توجه:</strong> بکاپ‌ها توی پوشه‌ی OneDrive ذخیره می‌شن، پس خودکار به ابر منتقل می‌شن.
+        <br />
+        <strong>ولی:</strong> OneDrive فقط در برابر خرابی هارد محافظت می‌کنه — نه در برابر حذف اشتباه یا باج‌افزار.
+        <br />
+        💡 توصیه: ماهی یه بار یکی از بکاپ‌های monthly رو دستی به یه فلش یا هارد جدا کپی کن.
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center text-muted mt-5"><p>⏳ در حال بارگذاری...</p></div>
+    }
+    else
+    {
+        <!-- ===== هشدار سلامت ===== -->
+        @if (status != null && !status.IsHealthy)
+        {
+            <div class="alert alert-danger py-2 small mb-3">
+                <strong>🚨 هشدار:</strong>
+                @if (status.LastSuccessDate == null)
+                {
+                    <span>هنوز هیچ بکاپ موفقی گرفته نشده!</span>
+                }
+                else if (status.HoursSinceLastSuccess > 48)
+                {
+                    <span>
+                        آخرین بکاپ موفق <strong>@Math.Floor(status.HoursSinceLastSuccess ?? 0) ساعت</strong> پیش بوده.
+                        باید حداقل هر ۲۴ ساعت یه بار بکاپ بگیریم.
+                    </span>
+                }
+                @if (!string.IsNullOrEmpty(status.LastAttemptError))
+                {
+                    <div class="mt-1"><strong>آخرین خطا:</strong> @status.LastAttemptError</div>
+                }
+            </div>
+        }
+
+        <!-- ===== کارت‌های آماری ===== -->
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-4">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #3498db !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">🗂️</h5>
+                        <h6 class="text-muted small mb-0">تعداد بکاپ موفق</h6>
+                        <h4 class="mb-0">@status?.TotalBackupCount</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid @(status?.IsHealthy == true ? "#2ecc71" : "#e74c3c") !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">📅</h5>
+                        <h6 class="text-muted small mb-0">آخرین بکاپ</h6>
+                        @if (status?.LastSuccessDate != null)
+                        {
+                            <h5 class="mb-0">@status.LastSuccessDate.Value.ToPersianDate()</h5>
+                            <div class="text-muted small">@status.LastSuccessDate.Value.ToString("HH:mm")</div>
+                        }
+                        else
+                        {
+                            <h5 class="mb-0 text-danger">—</h5>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="card shadow-sm border-0" style="border-right: 4px solid #9b59b6 !important;">
+                    <div class="card-body text-center p-2 p-md-3">
+                        <h5 class="mb-1">💽</h5>
+                        <h6 class="text-muted small mb-0">حجم کل</h6>
+                        <h4 class="mb-0">@FormatSize(status?.TotalSizeBytes ?? 0)</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== دکمه‌ی بکاپ دستی ===== -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-body p-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <strong class="small">گرفتن بکاپ دستی</strong>
+                    <div class="text-muted small">از دیتابیس فعلی یه نسخه‌ی کامل گرفته می‌شه.</div>
+                </div>
+                <button class="btn btn-success btn-sm" @onclick="CreateBackup" disabled="@isCreating">
+                    @if (isCreating)
+                    {
+                        <span>⏳ در حال بکاپ...</span>
+                    }
+                    else
+                    {
+                        <span>💾 بکاپ دستی</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== جدول بکاپ‌ها ===== -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-2">
+                <h5 class="mb-0 fs-6">📋 تاریخچه‌ی بکاپ‌ها</h5>
+            </div>
+            <div class="card-body p-2">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle table-cards">
+                        <thead>
+                            <tr>
+                                <th class="small">تاریخ و ساعت</th>
+                                <th class="small">نوع</th>
+                                <th class="small">حجم</th>
+                                <th class="small">وضعیت</th>
+                                <th class="small">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (history == null || !history.Any())
+                            {
+                                <tr><td colspan="5" class="text-center text-muted small py-3">هیچ بکاپی ثبت نشده</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var b in history)
+                                {
+                                    <tr class="@(b.Status == "Failed" ? "table-danger" : "")">
+                                        <td class="small fw-bold td-title" data-label="تاریخ">
+                                            @b.BackupDate.ToPersianDate()
+                                            <div class="text-muted fw-normal small">@b.BackupDate.ToString("HH:mm:ss")</div>
+                                        </td>
+                                        <td class="small" data-label="نوع">
+                                            <span class="badge @GetTypeBadge(b.BackupType)">
+                                                @GetTypeLabel(b.BackupType)
+                                            </span>
+                                        </td>
+                                        <td class="small" data-label="حجم">@FormatSize(b.FileSizeBytes)</td>
+                                        <td class="small" data-label="وضعیت">
+                                            @if (b.Status == "Success")
+                                            {
+                                                <span class="badge bg-success">✓ موفق</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger">✗ ناموفق</span>
+                                                @if (!string.IsNullOrEmpty(b.ErrorMessage))
+                                                {
+                                                    <div class="text-danger small mt-1">@b.ErrorMessage</div>
+                                                }
+                                            }
+                                        </td>
+                                        <td class="td-actions" data-label="عملیات">
+                                            @if (b.Status == "Success")
+                                            {
+                                                <button class="btn btn-sm btn-info" title="دانلود"
+                                                        @onclick="() => DownloadBackup(b.BackupLogId)">📥</button>
+                                                <button class="btn btn-sm btn-danger" title="حذف"
+                                                        @onclick="() => DeleteBackup(b)">🗑️</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== راهنمای بازیابی ===== -->
+        <div class="card shadow-sm mt-3">
+            <div class="card-header bg-warning text-dark py-2">
+                <h5 class="mb-0 fs-6">🔙 بازیابی از بکاپ</h5>
+            </div>
+            <div class="card-body p-3">
+                <p class="small mb-2">
+                    بازیابی <strong>از طریق UI امکان‌پذیر نیست</strong> (برای جلوگیری از خطای انسانی).
+                    برای بازیابی، این مراحل رو دنبال کن:
+                </p>
+                <ol class="small mb-0">
+                    <li>سیستم رو ببند (دابل کلیک <code>Stop.bat</code>)</li>
+                    <li>فایل <code>Restore-Backup.bat</code> توی ریشه‌ی پروژه رو دابل کلیک کن</li>
+                    <li>از لیست، بکاپ مورد نظر رو انتخاب کن</li>
+                    <li>دو بار تأیید بگیره و بازیابی کنه</li>
+                </ol>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private BackupStatusDto? status;
+    private List<BackupLogDto> history = new();
+    private bool isLoading = true;
+    private bool isCreating = false;
+
+    protected override async Task OnInitializedAsync() => await RefreshAll();
+
+    private async Task RefreshAll()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            status = await Http.GetFromJsonAsync<BackupStatusDto>("api/backup/status");
+            history = await Http.GetFromJsonAsync<List<BackupLogDto>>("api/backup/history?take=100") ?? new();
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CreateBackup()
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+            "بکاپ دستی از دیتابیس فعلی گرفته بشه؟");
+        if (!confirmed) return;
+
+        isCreating = true;
+        StateHasChanged();
+
+        try
+        {
+            var res = await Http.PostAsync("api/backup/create", null);
+            if (res.IsSuccessStatusCode)
+            {
+                await JsRuntime.InvokeVoidAsync("alert", "✅ بکاپ با موفقیت گرفته شد.");
+                await RefreshAll();
+            }
+            else
+            {
+                var body = await res.Content.ReadAsStringAsync();
+                await JsRuntime.InvokeVoidAsync("alert", $"❌ خطا در بکاپ:\n{body}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+        }
+        finally
+        {
+            isCreating = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadBackup(int id)
+    {
+        try
+        {
+            var res = await Http.GetAsync($"api/backup/download/{id}");
+            if (!res.IsSuccessStatusCode)
+            {
+                await JsRuntime.InvokeVoidAsync("alert", "❌ فایل بکاپ پیدا نشد.");
+                return;
+            }
+
+            var bytes = await res.Content.ReadAsByteArrayAsync();
+            var base64 = Convert.ToBase64String(bytes);
+            var fileName = $"OrderManagement_Backup_{id}_{DateTime.Now:yyyyMMdd_HHmmss}.sql";
+            await JsRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+        }
+    }
+
+    private async Task DeleteBackup(BackupLogDto b)
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+            $"حذف بکاپ {b.BackupDate.ToPersianDate()}؟\n\n" +
+            "این فایل از روی دیسک هم پاک می‌شه. مطمئنی؟");
+        if (!confirmed) return;
+
+        try
+        {
+            var res = await Http.DeleteAsync($"api/backup/{b.BackupLogId}");
+            if (res.IsSuccessStatusCode)
+            {
+                await RefreshAll();
+            }
+            else
+            {
+                await JsRuntime.InvokeVoidAsync("alert", "❌ خطا در حذف.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"❌ {ex.Message}");
+        }
+    }
+
+    private string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} بایت";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} کیلوبایت";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} مگابایت";
+        return $"{bytes / (1024.0 * 1024 * 1024):F2} گیگابایت";
+    }
+
+    private string GetTypeBadge(string type) => type switch
+    {
+        "auto" => "bg-primary",
+        "monthly" => "bg-success",
+        "manual" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private string GetTypeLabel(string type) => type switch
+    {
+        "auto" => "خودکار",
+        "monthly" => "ماهانه",
+        "manual" => "دستی",
+        _ => type
+    };
+
+    // ===== DTO =====
+    public class BackupStatusDto
+    {
+        public int TotalBackupCount { get; set; }
+        public DateTime? LastSuccessDate { get; set; }
+        public DateTime? LastAttemptDate { get; set; }
+        public string? LastAttemptStatus { get; set; }
+        public string? LastAttemptError { get; set; }
+        public double? HoursSinceLastSuccess { get; set; }
+        public long TotalSizeBytes { get; set; }
+        public bool IsHealthy { get; set; }
+    }
+
+    public class BackupLogDto
+    {
+        public int BackupLogId { get; set; }
+        public DateTime BackupDate { get; set; }
+        public string BackupType { get; set; } = "";
+        public string FilePath { get; set; } = "";
+        public long FileSizeBytes { get; set; }
+        public string Status { get; set; } = "";
+        public string? ErrorMessage { get; set; }
+    }
+}

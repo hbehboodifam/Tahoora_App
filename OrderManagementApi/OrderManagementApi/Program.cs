@@ -31,7 +31,9 @@ else
 builder.Services.AddScoped<SmsService>();
 builder.Services.AddScoped<OrderManagementApi.Services.RfmCalculator>();
 builder.Services.AddScoped<OrderManagementApi.Services.InventoryService>();
+builder.Services.AddScoped<OrderManagementApi.Services.BackupService>();
 builder.Services.AddControllers();
+builder.Services.AddHostedService<OrderManagementApi.BackgroundServices.AutoBackupService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
