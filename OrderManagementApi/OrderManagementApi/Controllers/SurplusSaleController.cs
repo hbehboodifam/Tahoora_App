@@ -89,7 +89,9 @@ public class SurplusSaleController : ControllerBase
             IsPaid = dto.IsPaid,
             PaymentDate = dto.IsPaid ? DateTime.Now : null,
             Notes = dto.Notes,
-            OrderSource = "Surplus"
+            OrderSource = "Surplus",
+            IsShipped = true,
+            ShippedDate = DateTime.Now
         };
 
         decimal total = 0;
