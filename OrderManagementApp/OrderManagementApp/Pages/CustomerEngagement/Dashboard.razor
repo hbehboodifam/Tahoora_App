@@ -1,0 +1,527 @@
+﻿@page "/customer-engagement"
+@using OrderManagementApp.Helpers
+@inject HttpClient Http
+@inject IJSRuntime JsRuntime
+@inject NavigationManager Nav
+
+<div class="container-fluid px-2 px-md-3" dir="rtl">
+
+    <!-- ===== هدر ===== -->
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+        <div>
+            <h4 class="mb-1 fw-bold">📞 دستیار ارتباط با مشتری</h4>
+            <small class="text-muted">امروز: @DateTime.Now.ToPersianDate()</small>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" @onclick="LoadData" disabled="@isLoading">
+            @if (isLoading)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            🔄 بروزرسانی
+        </button>
+    </div>
+
+    @if (isLoading && predictions == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="text-muted mt-3">در حال محاسبه‌ی پیش‌بینی‌ها...</div>
+        </div>
+    }
+    else if (predictions == null || !predictions.Any())
+    {
+        <div class="alert alert-info text-center">
+            ℹ️ هنوز داده‌ی کافی برای پیش‌بینی وجود ندارد.
+            <br />
+            <small class="text-muted">برای هر مشتری حداقل ۳ سفارش Regular لازم است.</small>
+        </div>
+    }
+    else
+    {
+        <!-- ===== کارت‌های خلاصه ===== -->
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="eng-summary-card status-overdue" @onclick='() => activeTab = "Overdue"'>
+                    <div class="eng-summary-icon">🔴</div>
+                    <div class="eng-summary-label">عقب‌افتاده</div>
+                    <div class="eng-summary-value">@summary.Overdue</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="eng-summary-card status-duenow" @onclick='() => activeTab = "DueNow"'>
+                    <div class="eng-summary-icon">🟡</div>
+                    <div class="eng-summary-label">الان وقتشه</div>
+                    <div class="eng-summary-value">@summary.DueNow</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="eng-summary-card status-upcoming" @onclick='() => activeTab = "Upcoming"'>
+                    <div class="eng-summary-icon">🟢</div>
+                    <div class="eng-summary-label">این هفته</div>
+                    <div class="eng-summary-value">@summary.Upcoming</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="eng-summary-card status-dormant" @onclick='() => activeTab = "Dormant"'>
+                    <div class="eng-summary-icon">😴</div>
+                    <div class="eng-summary-label">خواب‌رفته</div>
+                    <div class="eng-summary-value">@summary.Dormant</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== تب‌ها ===== -->
+        <ul class="nav nav-pills eng-tabs mb-3 flex-nowrap overflow-auto">
+            <li class="nav-item">
+                <button class="nav-link text-nowrap @(activeTab == "Overdue" ? "active" : "")"
+                        @onclick='() => activeTab = "Overdue"'>
+                    🔴 عقب‌افتاده (@summary.Overdue)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link text-nowrap @(activeTab == "DueNow" ? "active" : "")"
+                        @onclick='() => activeTab = "DueNow"'>
+                    🟡 الان وقتشه (@summary.DueNow)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link text-nowrap @(activeTab == "Upcoming" ? "active" : "")"
+                        @onclick='() => activeTab = "Upcoming"'>
+                    🟢 این هفته (@summary.Upcoming)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link text-nowrap @(activeTab == "Dormant" ? "active" : "")"
+                        @onclick='() => activeTab = "Dormant"'>
+                    😴 خواب‌رفته (@summary.Dormant)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link text-nowrap @(activeTab == "All" ? "active" : "")"
+                        @onclick='() => activeTab = "All"'>
+                    📋 همه (@summary.Total)
+                </button>
+            </li>
+        </ul>
+
+        <!-- ===== لیست مشتری‌ها ===== -->
+        @if (!CurrentList.Any())
+        {
+            <div class="alert alert-light text-center text-muted">
+                🎉 در این دسته هیچ مشتری‌ای نیست.
+            </div>
+        }
+        else
+        {
+            <div class="row g-2">
+                @foreach (var p in CurrentList)
+                {
+                    <div class="col-12 col-lg-6">
+                        <div class="eng-customer-card @GetStatusCssClass(p.Status)">
+                            <!-- ردیف اول: نام + دسته RFM -->
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                <div class="fw-bold text-dark" style="font-size: 1.05rem;">
+                                    @p.CustomerName
+                                </div>
+                                @if (!string.IsNullOrEmpty(p.RfmCategory))
+                                {
+                                    <span class="badge bg-light text-dark border small">@p.RfmCategory</span>
+                                }
+                            </div>
+
+                            <!-- ردیف دوم: تلفن + بدهی -->
+                            <div class="d-flex flex-wrap gap-3 mb-2 small text-muted">
+                                @if (!string.IsNullOrEmpty(p.Phone))
+                                {
+                                    <a href="tel:@p.Phone" class="text-decoration-none text-dark">
+                                        📞 <span dir="ltr">@p.Phone</span>
+                                    </a>
+                                }
+                                @if (p.Debt > 0)
+                                {
+                                    <span class="text-danger">
+                                        💳 بدهی: <strong>@p.Debt.ToString("N0")</strong> تومان
+                                    </span>
+                                }
+                            </div>
+
+                            <!-- ردیف سوم: آمار -->
+                            <div class="eng-stat-row">
+                                <div class="eng-stat-item">
+                                    <span class="text-muted small">میانگین دوره</span>
+                                    <strong>هر ~@p.AverageIntervalDays روز</strong>
+                                </div>
+                                <div class="eng-stat-item">
+                                    <span class="text-muted small">آخرین سفارش</span>
+                                    <strong>@p.DaysSinceLastOrder روز پیش</strong>
+                                </div>
+                                <div class="eng-stat-item">
+                                    <span class="text-muted small">تعداد سفارش</span>
+                                    <strong>@p.OrderCount</strong>
+                                </div>
+                            </div>
+
+                            <!-- ردیف چهارم: وضعیت + اعتماد -->
+                            <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+                                <span class="badge @GetStatusBadgeClass(p.Status)">
+                                    @GetStatusLabel(p.Status)
+                                </span>
+                                <span class="badge @GetConfidenceBadgeClass(p.Confidence)">
+                                    @GetConfidenceLabel(p.Confidence) (@p.Regularity.ToString("P0"))
+                                </span>
+                            </div>
+
+                            <!-- دکمه‌ها -->
+                            <div class="d-flex flex-wrap gap-2">
+                                @if (!string.IsNullOrEmpty(p.Phone))
+                                {
+                                    <a href="tel:@p.Phone" class="btn btn-sm btn-outline-success flex-grow-1">
+                                        📞 تماس
+                                    </a>
+                                }
+                                <button class="btn btn-sm btn-outline-primary flex-grow-1"
+                                        @onclick='() => OpenSmsModal(p)'
+                                        disabled="@(!p.Phone.Any())">
+                                    📱 پیامک
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary flex-grow-1"
+                                        @onclick='() => GoToProfile(p.CustomerId)'>
+                                    👤 پروفایل
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<!-- ===== مودال پیامک ===== -->
+@if (smsTarget != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5); z-index: 1050;">
+        <div class="modal-dialog modal-fullscreen-sm-down modal-dialog-centered">
+            <div class="modal-content" dir="rtl">
+                <div class="modal-header">
+                    <h5 class="modal-title">📱 ارسال پیامک یادآوری</h5>
+                    <button type="button" class="btn-close" @onclick="CloseSmsModal" disabled="@isSendingSms"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">گیرنده</label>
+                        <div class="fw-bold">@smsTarget.CustomerName</div>
+                        <div class="text-muted small" dir="ltr">@smsTarget.Phone</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">متن پیامک</label>
+                        <textarea class="form-control" rows="5"
+                                  @bind="smsMessage"
+                                  @bind:event="oninput"
+                                  disabled="@isSendingSms"></textarea>
+                        <small class="text-muted">@smsMessage.Length کاراکتر</small>
+                    </div>
+
+                    @if (smsForceConfirm)
+                    {
+                        <div class="alert alert-warning small mb-0">
+                            ⚠️ در ۷ روز گذشته به این مشتری یادآوری ارسال شده.
+                            آیا مطمئنی می‌خوای بازم بفرستی؟
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(smsError))
+                    {
+                        <div class="alert alert-danger small mb-0 mt-2">@smsError</div>
+                    }
+                </div>
+                <div class="modal-footer flex-wrap gap-2">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseSmsModal" disabled="@isSendingSms">
+                        انصراف
+                    </button>
+                    <button class="btn btn-primary btn-sm" @onclick="SendSms" disabled="@isSendingSms">
+                        @if (isSendingSms)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        @(smsForceConfirm ? "ارسال با تایید" : "📤 ارسال پیامک")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    /* ===== کارت‌های خلاصه ===== */
+    .eng-summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 12px;
+        text-align: center;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        transition: all 0.15s;
+        border-right: 4px solid #cbd5e1;
+        height: 100%;
+    }
+    .eng-summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.1); }
+    .eng-summary-card.status-overdue  { border-right-color: #ef4444; }
+    .eng-summary-card.status-duenow   { border-right-color: #f59e0b; }
+    .eng-summary-card.status-upcoming { border-right-color: #10b981; }
+    .eng-summary-card.status-dormant  { border-right-color: #6b7280; }
+    .eng-summary-icon  { font-size: 1.5rem; line-height: 1; }
+    .eng-summary-label { font-size: 0.8rem; color: #64748b; margin: 4px 0 2px; }
+    .eng-summary-value { font-size: 1.4rem; font-weight: bold; color: #1e293b; }
+
+    /* ===== تب‌ها ===== */
+    .eng-tabs .nav-link {
+        color: #495057 !important;
+        background: #f1f5f9;
+        border-radius: 20px;
+        padding: 6px 14px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .eng-tabs .nav-link.active {
+        background: #6C63FF !important;
+        color: white !important;
+    }
+
+    /* ===== کارت مشتری ===== */
+    .eng-customer-card {
+        background: white;
+        border-radius: 12px;
+        padding: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border-right: 4px solid #cbd5e1;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        transition: box-shadow 0.15s;
+    }
+    .eng-customer-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.1); }
+    .eng-customer-card.status-overdue  { border-right-color: #ef4444; }
+    .eng-customer-card.status-duenow   { border-right-color: #f59e0b; }
+    .eng-customer-card.status-upcoming { border-right-color: #10b981; }
+    .eng-customer-card.status-dormant  { border-right-color: #6b7280; }
+
+    .eng-stat-row {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+    }
+    .eng-stat-item {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 90px;
+        padding: 6px 8px;
+        background: #f8fafc;
+        border-radius: 6px;
+        font-size: 0.8rem;
+    }
+    .eng-stat-item strong { font-size: 0.85rem; }
+
+    @@media (max-width: 768px) {
+        .eng-tabs .nav-link { font-size: 0.78rem; padding: 5px 10px; }
+        .eng-customer-card { padding: 12px; }
+    }
+</style>
+
+@code {
+    // ===== DTO =====
+    public class PredictionDto
+    {
+        public int CustomerId { get; set; }
+        public string CustomerName { get; set; } = "";
+        public string? Phone { get; set; }
+        public int OrderCount { get; set; }
+        public DateTime LastOrderDate { get; set; }
+        public DateTime PredictedDate { get; set; }
+        public double AverageIntervalDays { get; set; }
+        public int DaysSinceLastOrder { get; set; }
+        public int DaysUntilPredicted { get; set; }
+        public double Regularity { get; set; }
+        public string Confidence { get; set; } = "";
+        public string Status { get; set; } = "";
+        public decimal TotalPurchase { get; set; }
+        public decimal Debt { get; set; }
+        public string RfmCategory { get; set; } = "";
+        public string RfmCategoryKey { get; set; } = "";
+    }
+
+    public class SummaryDto
+    {
+        public int Overdue { get; set; }
+        public int DueNow { get; set; }
+        public int Upcoming { get; set; }
+        public int Dormant { get; set; }
+        public int Total { get; set; }
+    }
+
+    // ===== State =====
+    private List<PredictionDto>? predictions;
+    private SummaryDto summary = new();
+    private bool isLoading = true;
+    private string activeTab = "Overdue";
+
+    private PredictionDto? smsTarget;
+    private string smsMessage = "";
+    private string? smsError;
+    private bool isSendingSms = false;
+    private bool smsForceConfirm = false;
+
+    private IEnumerable<PredictionDto> CurrentList =>
+        activeTab == "All"
+            ? predictions ?? Enumerable.Empty<PredictionDto>()
+            : (predictions ?? Enumerable.Empty<PredictionDto>()).Where(p => p.Status == activeTab);
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            predictions = await Http.GetFromJsonAsync<List<PredictionDto>>("api/customer-engagement/predictions");
+            var s = await Http.GetFromJsonAsync<SummaryDto>("api/customer-engagement/summary");
+            if (s != null) summary = s;
+
+            // اگه تب فعلی خالیه، برو سراغ تب پر
+            if (!CurrentList.Any())
+            {
+                if (summary.Overdue > 0) activeTab = "Overdue";
+                else if (summary.DueNow > 0) activeTab = "DueNow";
+                else if (summary.Upcoming > 0) activeTab = "Upcoming";
+                else if (summary.Dormant > 0) activeTab = "Dormant";
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", $"خطا در دریافت داده: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenSmsModal(PredictionDto p)
+    {
+        smsTarget = p;
+        smsError = null;
+        smsForceConfirm = false;
+        smsMessage = BuildDefaultMessage(p);
+    }
+
+    private void CloseSmsModal()
+    {
+        smsTarget = null;
+        smsMessage = "";
+        smsError = null;
+        smsForceConfirm = false;
+    }
+
+    private static string BuildDefaultMessage(PredictionDto p)
+    {
+        return $"سلام {p.CustomerName} عزیز،\n" +
+               $"وقت سفارش بعدی شما فرا رسیده است. در صورت نیاز، سفارش خود را ثبت نمایید.\n\n" +
+               $"طهورا پروتئین";
+    }
+
+    private async Task SendSms()
+    {
+        if (smsTarget == null) return;
+        if (string.IsNullOrWhiteSpace(smsMessage))
+        {
+            smsError = "متن پیامک خالی است.";
+            return;
+        }
+
+        isSendingSms = true;
+        smsError = null;
+
+        try
+        {
+            var req = new
+            {
+                Message = smsMessage,
+                Force = smsForceConfirm
+            };
+            var res = await Http.PostAsJsonAsync($"api/customer-engagement/send-reminder/{smsTarget.CustomerId}", req);
+            var body = await res.Content.ReadAsStringAsync();
+
+            if (res.IsSuccessStatusCode)
+            {
+                CloseSmsModal();
+                await JsRuntime.InvokeVoidAsync("alert", "✅ پیامک با موفقیت ارسال شد.");
+                await LoadData();
+            }
+            else if (!smsForceConfirm && body.Contains("۷ روز"))
+            {
+                // سرور گفت ضد-اسپم فعاله → کاربر تایید کنه
+                smsForceConfirm = true;
+                smsError = body.Trim('"');
+            }
+            else
+            {
+                smsError = body.Trim('"');
+            }
+        }
+        catch (Exception ex)
+        {
+            smsError = $"خطای سیستم: {ex.Message}";
+        }
+        finally
+        {
+            isSendingSms = false;
+        }
+    }
+
+    private void GoToProfile(int customerId) => Nav.NavigateTo($"/customers/{customerId}/profile");
+
+    // ===== کمک‌کننده‌های UI =====
+    private static string GetStatusCssClass(string s) => s switch
+    {
+        "Overdue"  => "status-overdue",
+        "DueNow"   => "status-duenow",
+        "Upcoming" => "status-upcoming",
+        "Dormant"  => "status-dormant",
+        _ => ""
+    };
+
+    private static string GetStatusBadgeClass(string s) => s switch
+    {
+        "Overdue"  => "bg-danger",
+        "DueNow"   => "bg-warning text-dark",
+        "Upcoming" => "bg-success",
+        "Dormant"  => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+
+    private static string GetStatusLabel(string s) => s switch
+    {
+        "Overdue"  => "🔴 عقب‌افتاده",
+        "DueNow"   => "🟡 الان وقتشه",
+        "Upcoming" => "🟢 این هفته",
+        "Dormant"  => "😴 خواب‌رفته",
+        _ => s
+    };
+
+    private static string GetConfidenceBadgeClass(string c) => c switch
+    {
+        "High"   => "bg-success-subtle text-success border border-success",
+        "Medium" => "bg-warning-subtle text-warning-emphasis border border-warning",
+        _        => "bg-light text-muted border"
+    };
+
+    private static string GetConfidenceLabel(string c) => c switch
+    {
+        "High"   => "🟢 منظم",
+        "Medium" => "🟡 متوسط",
+        _        => "⚪ نامنظم"
+    };
+}

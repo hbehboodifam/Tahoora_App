@@ -51,6 +51,15 @@
                     <NavLink class="nav-link text-white" href="/shipping" @onclick="CloseSidebar">
                         <span>🚚 بسته‌بندی و ارسال</span>
                     </NavLink>
+                    <NavLink class="nav-link text-white" href="/customer-engagement" @onclick="CloseSidebar">
+                        <span>
+                            📞 دستیار ارتباط
+                            @if (engagementAlertCount > 0)
+                            {
+                                <span class="badge bg-danger ms-1">@engagementAlertCount</span>
+                            }
+                        </span>
+                    </NavLink>
                 </div>
             }
         </div>
@@ -339,6 +348,9 @@
 
 @code {
     private bool isSidebarOpen = false;
+    
+    // ===== بج دستیار ارتباط =====
+    private int engagementAlertCount = 0;
 
     // ===== وضعیت باز/بسته‌ی گروه‌ها =====
     private readonly Dictionary<string, bool> openGroups = new()
@@ -384,12 +396,34 @@
         if (firstRender)
         {
             _ = CheckBackupStatusAsync();
+            _ = CheckEngagementAsync();
 
             _backupCheckTimer = new System.Threading.Timer(async _ =>
             {
                 await InvokeAsync(CheckBackupStatusAsync);
             }, null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
         }
+    }
+    
+    private async Task CheckEngagementAsync()
+    {
+        try
+        {
+            var s = await Http.GetFromJsonAsync<EngagementSummary>("api/customer-engagement/summary");
+            var count = (s?.Overdue ?? 0) + (s?.DueNow ?? 0);
+            if (count != engagementAlertCount)
+            {
+                engagementAlertCount = count;
+                StateHasChanged();
+            }
+        }
+        catch { /* API در دسترس نیست */ }
+    }
+
+    public class EngagementSummary
+    {
+        public int Overdue { get; set; }
+        public int DueNow { get; set; }
     }
 
     private void ToggleSidebar() => isSidebarOpen = !isSidebarOpen;
@@ -423,6 +457,8 @@
     {
         _backupCheckTimer?.Dispose();
     }
+    
+    
 
     public class BackupStatus
     {

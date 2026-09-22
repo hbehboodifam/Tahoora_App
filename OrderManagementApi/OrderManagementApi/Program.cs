@@ -30,6 +30,7 @@ else
 // ===== سرویس‌ها =====
 builder.Services.AddScoped<SmsService>();
 builder.Services.AddScoped<OrderManagementApi.Services.RfmCalculator>();
+builder.Services.AddScoped<OrderManagementApi.Services.CustomerEngagementService>();
 builder.Services.AddScoped<OrderManagementApi.Services.InventoryService>();
 builder.Services.AddScoped<OrderManagementApi.Services.BackupService>();
 builder.Services.AddControllers();
